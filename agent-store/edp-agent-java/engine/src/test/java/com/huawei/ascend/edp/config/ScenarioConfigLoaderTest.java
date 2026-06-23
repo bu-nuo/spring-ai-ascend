@@ -1,0 +1,113 @@
+package com.huawei.ascend.edp.config;
+
+import org.junit.jupiter.api.Test;
+import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.IOException;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * ScenarioConfigLoader 场景发现与加载器单元测试。
+ *
+ * 验证阶段 2 架构包结构生产化中的场景配置加载机制。
+ * 覆盖：findScenarioFile（方案 B 从 scenarioHome 定位）、loadScenarioConfig（纯 YAML 解析）。
+ */
+class ScenarioConfigLoaderTest {
+
+    @Test
+    void testFindScenarioFile_ExistingDir() throws IOException {
+        // 使用实际场景目录
+        Path scenarioHome = Path.of("../scenarios/wealth-demo").toAbsolutePath().normalize();
+        if (Files.exists(scenarioHome)) {
+            Path configFile = ScenarioConfigLoader.findScenarioFile(scenarioHome);
+            assertNotNull(configFile, "应找到 scenario-config.yaml");
+            assertTrue(configFile.toString().endsWith("scenario-config.yaml"), "文件名应为 scenario-config.yaml");
+            assertTrue(Files.exists(configFile), "文件应存在");
+        } else {
+            System.out.println("SKIP: wealth-demo scenario directory not found at " + scenarioHome);
+        }
+    }
+
+    @Test
+    void testFindScenarioFile_NonExistentDir() {
+        Path nonExistent = Path.of("/nonexistent/scenario");
+        assertThrows(IOException.class,
+                () -> ScenarioConfigLoader.findScenarioFile(nonExistent),
+                "不存在目录应抛 IOException");
+    }
+
+    @Test
+    void testLoadScenarioConfig_WealthDemo() throws IOException {
+        Path scenarioHome = Path.of("../scenarios/wealth-demo").toAbsolutePath().normalize();
+        if (Files.exists(scenarioHome)) {
+            Path configFile = ScenarioConfigLoader.findScenarioFile(scenarioHome);
+            ScenarioConfig config = ScenarioConfigLoader.loadScenarioConfig(configFile);
+
+            assertNotNull(config, "加载结果不应为 null");
+            assertEquals("理财购买", config.getName(), "场景名称应为理财购买");
+            assertNotNull(config.getScope(), "scope 不应为 null");
+            assertNotNull(config.getTodolistSteps(), "todolistSteps 不应为 null");
+            assertEquals(4, config.getTodolistSteps().size(), "理财购买应有 4 个步骤");
+            assertNotNull(config.getSkillRouting(), "skillRouting 不应为 null");
+            assertEquals(4, config.getSkillRouting().size(), "理财购买应有 4 条路由");
+            assertNotNull(config.getArchitecture(), "architecture 不应为 null");
+            assertEquals("mcp_first", config.getArchitecture().getType(), "架构类型应为 mcp_first");
+        } else {
+            System.out.println("SKIP: wealth-demo scenario directory not found");
+        }
+    }
+
+    @Test
+    void testLoadScenarioConfig_HzZhidaitong() throws IOException {
+        Path scenarioHome = Path.of("../scenarios/hz-zhidaitong").toAbsolutePath().normalize();
+        if (Files.exists(scenarioHome)) {
+            Path configFile = ScenarioConfigLoader.findScenarioFile(scenarioHome);
+            ScenarioConfig config = ScenarioConfigLoader.loadScenarioConfig(configFile);
+
+            assertNotNull(config, "加载结果不应为 null");
+            assertEquals("杭研智贷通", config.getName(), "场景名称应为杭研智贷通");
+            assertNotNull(config.getTodolistSteps(), "todolistSteps 不应为 null");
+            assertEquals(2, config.getTodolistSteps().size(), "杭研智贷通应有 2 个步骤");
+            // skill_routing 为空列表
+            assertNotNull(config.getSkillRouting(), "skillRouting 不应为 null");
+            assertEquals(0, config.getSkillRouting().size(), "杭研智贷通 skill_routing 应为空");
+            // architecture 为 null
+            assertNull(config.getArchitecture(), "杭研智贷通 architecture 应为 null");
+        } else {
+            System.out.println("SKIP: hz-zhidaitong scenario directory not found");
+        }
+    }
+
+    @Test
+    void testLoadScenarioConfig_ScopeAllowed() throws IOException {
+        Path scenarioHome = Path.of("../scenarios/wealth-demo").toAbsolutePath().normalize();
+        if (Files.exists(scenarioHome)) {
+            Path configFile = ScenarioConfigLoader.findScenarioFile(scenarioHome);
+            ScenarioConfig config = ScenarioConfigLoader.loadScenarioConfig(configFile);
+
+            ScenarioScopeConfig scope = config.getScope();
+            assertNotNull(scope.getAllowed(), "allowed 不应为 null");
+            assertTrue(scope.getAllowed().size() > 0, "allowed 应有内容");
+            assertNotNull(scope.getDenied(), "denied 不应为 null");
+            assertTrue(scope.getDenied().size() > 0, "denied 应有内容");
+        } else {
+            System.out.println("SKIP: wealth-demo scenario directory not found");
+        }
+    }
+
+    @Test
+    void testLoadScenarioConfig_TodolistStepDetails() throws IOException {
+        Path scenarioHome = Path.of("../scenarios/wealth-demo").toAbsolutePath().normalize();
+        if (Files.exists(scenarioHome)) {
+            Path configFile = ScenarioConfigLoader.findScenarioFile(scenarioHome);
+            ScenarioConfig config = ScenarioConfigLoader.loadScenarioConfig(configFile);
+
+            EdpConfig.TodolistStep step1 = config.getTodolistSteps().get(0);
+            assertEquals(1, step1.getStepId(), "第一步 stepId 应为 1");
+            assertEquals("推荐理财产品", step1.getContent(), "第一步内容应为推荐理财产品");
+            assertEquals("product_recommend_skill", step1.getSkill(), "第一步 skill 应为 product_recommend_skill");
+        } else {
+            System.out.println("SKIP: wealth-demo scenario directory not found");
+        }
+    }
+}

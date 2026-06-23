@@ -1,0 +1,13 @@
+server:
+  port: ${SERVER_PORT:8190}
+
+spring:
+  application:
+    name: edp-agent-engine
+
+edpa:
+  agent:
+    yaml-path: ${EDPA_AGENT_YAML_PATH:src/main/resources/edp-agent.yaml}
+    config-path: ${EDPA_AGENT_CONFIG_PATH:src/main/resources/edp-config.yaml}
+    scripts-config-path: ${EDPA_AGENT_SCRIPTS_PATH:src/main/resources/SysScriptsConfig.yaml}
+    scenario-home: ${EDP_AGENT_SCENARIO_HOME:../scenarios/wealth-demo}

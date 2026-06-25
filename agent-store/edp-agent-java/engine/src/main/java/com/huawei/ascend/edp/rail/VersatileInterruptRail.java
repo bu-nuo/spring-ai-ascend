@@ -3,6 +3,9 @@ package com.huawei.ascend.edp.rail;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.huawei.ascend.edp.channel.ToolDataChannel;
+import com.huawei.ascend.edp.channel.ToolDataKey;
+import com.huawei.ascend.edp.channel.ToolDataKeyFactory;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
@@ -49,6 +52,7 @@ public class VersatileInterruptRail extends AgentRail {
     private final EdpConfig edpConfig;
 
     private final EdpAgentConfig.Versatile versatileConfig;
+    private final ToolDataChannel toolDataChannel;
     private final HttpClient httpClient;
 
     /**
@@ -57,12 +61,18 @@ public class VersatileInterruptRail extends AgentRail {
      * @param edpConfig EDP 专有配置
      */
     public VersatileInterruptRail(EdpConfig edpConfig) {
-        this(edpConfig, null);
+        this(edpConfig, null, new ToolDataChannel());
     }
 
     public VersatileInterruptRail(EdpConfig edpConfig, EdpAgentConfig.Versatile versatileConfig) {
+        this(edpConfig, versatileConfig, new ToolDataChannel());
+    }
+
+    public VersatileInterruptRail(EdpConfig edpConfig, EdpAgentConfig.Versatile versatileConfig,
+            ToolDataChannel toolDataChannel) {
         this.edpConfig = edpConfig;
         this.versatileConfig = versatileConfig;
+        this.toolDataChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();
         Duration timeout = versatileConfig != null ? parseTimeout(versatileConfig.getTimeout()) : Duration.ofSeconds(30);
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(timeout)
@@ -109,7 +119,7 @@ public class VersatileInterruptRail extends AgentRail {
             String conversationId = ctx.getSession() != null && ctx.getSession().getSessionId() != null
                     ? ctx.getSession().getSessionId() : "call-versatile-spike";
             String url = resolveUrl(conversationId);
-            Map<String, Object> body = Map.of("inputs", buildInputs(args), "stream", true);
+            Map<String, Object> body = Map.of("inputs", buildInputs(args, ctx), "stream", true);
             String bodyJson = OBJECT_MAPPER.writeValueAsString(body);
             LOGGER.info("VersatileInterruptRail: request body {}", bodyJson);
 
@@ -166,12 +176,46 @@ public class VersatileInterruptRail extends AgentRail {
         return args;
     }
 
-    private Map<String, Object> buildInputs(Map<String, Object> args) {
+    private Map<String, Object> buildInputs(Map<String, Object> args, AgentCallbackContext ctx) {
         Map<String, Object> inputs = new LinkedHashMap<>();
+        ToolDataKey channelKey = ToolDataKeyFactory.fromContext(ctx, edpConfig);
         String query = String.valueOf(args.getOrDefault("query_description", ""));
+        if (query.isBlank()) {
+            query = readCachedQuery(channelKey);
+        }
         inputs.put("query", query);
         inputs.putAll(args);
+        inputs.put("query_description", query);
+
+        String inputKey = String.valueOf(args.getOrDefault("input_key", ""));
+        if (!inputKey.isBlank()) {
+            Object inputData = toolDataChannel.getObject(channelKey, inputKey);
+            if (inputData != null) {
+                inputs.put("input_data", inputData);
+                inputs.put("business_data", inputData);
+                LOGGER.info("VersatileInterruptRail: ToolDataChannel hit key={}, input_key={}", channelKey, inputKey);
+            } else {
+                LOGGER.warn("VersatileInterruptRail: ToolDataChannel miss key={}, input_key={}", channelKey, inputKey);
+                inputs.put("input_data", Map.of());
+                inputs.put("business_data", Map.of());
+            }
+        }
         return inputs;
+    }
+
+    private String readCachedQuery(ToolDataKey channelKey) {
+        Object cached = toolDataChannel.getObject(channelKey, McpInterruptRail.VERSATILE_QUERY_KEY);
+        if (cached instanceof String text) {
+            return text;
+        }
+        if (cached instanceof Map<?, ?> map) {
+            Object value = map.get("query_description");
+            if (value == null) {
+                value = map.get("query");
+            }
+            return value != null ? String.valueOf(value) : "";
+        }
+        return "";
     }
 
     private String resolveUrl(String conversationId) {

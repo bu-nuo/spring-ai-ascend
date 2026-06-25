@@ -1,5 +1,6 @@
 package com.huawei.ascend.edp.handler;
 
+import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.EdpAgentConfig.EnvOverrides;
 import com.huawei.ascend.edp.config.EdpAgentConfigLoader;
@@ -232,7 +233,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         registerSkills(skillsDir);
 
         // 第十一步：注册 EDPAgent 内置业务工具和业务 Rails。
-        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig);
+        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir);
 
         // 第十二步：加载框架级、场景级、Skill 级话术。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();

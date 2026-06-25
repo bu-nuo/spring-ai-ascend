@@ -135,4 +135,31 @@ class ToolDataChannelTest {
         Map<String, Object> retrieved = channel.get(key1, "result");
         assertEquals(2, retrieved.get("version"), "同一 resultKey 应覆盖");
     }
+
+    @Test
+    void testStoreAndGetObject_StringValue() {
+        channel.store(key1, "mcp_to_versatile_information", "购买第一支理财产品");
+        assertEquals("购买第一支理财产品", channel.getObject(key1, "mcp_to_versatile_information"));
+        assertNull(channel.get(key1, "mcp_to_versatile_information"), "非 Map 数据通过 get 应返回 null");
+    }
+
+    @Test
+    void testContainsAndSnapshot() {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("value", "A");
+        channel.store(key1, "fund_recommend_result", data);
+
+        assertTrue(channel.contains(key1, "fund_recommend_result"));
+        assertFalse(channel.contains(key1, "Fund_Recommend_Result"), "key 大小写应敏感");
+        assertEquals(1, channel.snapshot(key1).size());
+        assertTrue(channel.snapshot(key1).containsKey("fund_recommend_result"));
+    }
+
+    @Test
+    void testStore_BlankKeyIgnored() {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("value", "A");
+        channel.store(key1, "", data);
+        assertTrue(channel.snapshot(key1).isEmpty(), "空 resultKey 不应写入");
+    }
 }

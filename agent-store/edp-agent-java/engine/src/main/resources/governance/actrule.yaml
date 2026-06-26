@@ -1,0 +1,35 @@
+# 定位：定义Agent的任务执行约束与行为边界
+#
+# 作用：
+# - 回答Agent如何执行任务
+# - 控制执行过程中的重试、重规划、步数限制
+# - 约束Agent可调用的工具集合
+
+actrule:
+  # 限制单层最大子任务数量
+  max_subtasks: 50
+
+  # 允许失败后重新规划
+  replan_enabled: true
+
+  # 限制最大重规划次数
+  max_replan_count: 3
+
+  # 限制最大执行步数
+  max_steps: 100
+
+  # 是否允许失败重试
+  retry_enabled: true
+
+  # 限制最大重试次数
+  max_retry_count: 3
+
+  # 允许调用的工具列表
+  allowed_tools:
+      - bash
+      - skill_tool
+      - call_versatile
+      - call_mcp
+      - ask_user
+      - lite_todo_write
+      - cancel_task

@@ -6,6 +6,7 @@ import com.huawei.ascend.runtime.engine.versatile.VersatileClient;
 import com.huawei.ascend.runtime.engine.versatile.VersatileMessageAdapter;
 import com.huawei.ascend.runtime.engine.versatile.VersatileProperties;
 import com.huawei.ascend.runtime.engine.versatile.VersatileStreamAdapter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,7 +31,9 @@ public class VersatileAgentConfiguration {
     public static final String AGENT_ID = "versatile-agent";
 
     @Bean
-    AgentRuntimeHandler versatileAgentRuntimeHandler(VersatileProperties props) {
+    AgentRuntimeHandler versatileAgentRuntimeHandler(
+            VersatileProperties props,
+            @Value("${versatile.result-node-name:}") String resultNodeName) {
         VersatileClient client = new VersatileClient(props);
         return new VersatileAgentRuntimeHandler(
                 AGENT_ID,
@@ -38,6 +41,6 @@ public class VersatileAgentConfiguration {
                 "Versatile workflow proxy agent — relays A2A requests to a remote versatile REST API",
                 client,
                 new VersatileMessageAdapter(props),
-                new MenuPassthroughVersatileStreamAdapter(props));
+                new RawNodePassthroughVersatileStreamAdapter(props, resultNodeName));
     }
 }

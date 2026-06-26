@@ -359,6 +359,8 @@ public final class A2aAgentExecutor implements AgentExecutor {
         List<RuntimeMessage> messages = List.of(RuntimeMessage.user(text));
         String sessionId = ctx.getContextId() != null ? ctx.getContextId() : ctx.getTaskId();
         Map<String, Object> variables = mergeVariables(ctx);
+        variables = new LinkedHashMap<>(variables);
+        variables.put("runtime.inputText", text);
         return new AgentExecutionContext(
                 new RuntimeIdentity(
                         asString(variables.get(TENANT_STATE_KEY)),

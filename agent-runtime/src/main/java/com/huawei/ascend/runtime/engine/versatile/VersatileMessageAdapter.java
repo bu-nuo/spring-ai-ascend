@@ -180,6 +180,9 @@ public class VersatileMessageAdapter {
         // to JSON text) and the remote-continuation round (the user sends
         // versatile-format JSON in parts[0].text) arrive here.
         String rawText = context.lastUserText();
+        if ((rawText == null || rawText.isBlank()) && context.getVariables() != null) {
+            rawText = String.valueOf(context.getVariables().getOrDefault("runtime.inputText", ""));
+        }
         if (rawText != null && !rawText.isBlank()) {
             try {
                 Map<String, Object> parsed = OBJECT_MAPPER.readValue(rawText, MAP_TYPE);
@@ -197,6 +200,10 @@ public class VersatileMessageAdapter {
             } catch (Exception ignored) {
                 LOG.debug("versatile message text is not valid JSON — trying vars fallback");
             }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("query", rawText);
+            LOG.info("versatile inputs extracted from plain message text");
+            return result;
         }
         // Fallback: inputs embedded in context variables (legacy path — kept for
         // backward compatibility with callers that embed inputs in A2A metadata).

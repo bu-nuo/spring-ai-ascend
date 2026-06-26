@@ -7,6 +7,7 @@ import com.huawei.ascend.edp.rail.CancelRail;
 import com.huawei.ascend.edp.rail.LiteTodoRail;
 import com.huawei.ascend.edp.rail.ExecutionLimitRail;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
+import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuffer;
 import com.huawei.ascend.edp.rail.McpInterruptRail;
 import com.huawei.ascend.edp.rail.AskUserTemplateRail;
 import com.huawei.ascend.edp.rail.LogRail;
@@ -89,6 +90,11 @@ public class EdpaAgentEnhancer {
 
     public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir) {
+        enhance(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
+    }
+
+    public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
+            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
         // 关键判断：DeepAgent 是注册工具和 Rail 的目标对象，缺失时直接失败，避免静默启动。
         if (agent == null) {
             throw new IllegalArgumentException("DeepAgent instance must not be null");
@@ -102,7 +108,7 @@ public class EdpaAgentEnhancer {
         registerBusinessTools(agent, edpConfig);
 
         // 再注册 Rails，确保模型调用、工具调用、记忆、日志等回调进入执行链路。
-        registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir);
+        registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, passthroughBuffer);
 
         LOGGER.info("EdpaAgentEnhancer.enhance() completed, registered {} business tools and {} business rails",
                 countRegisteredTools(), edpConfig != null ? countRegisteredRails(edpConfig) : 0);
@@ -142,7 +148,14 @@ public class EdpaAgentEnhancer {
 
     public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir) {
+        return buildBusinessRails(edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
+    }
+
+    public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpAgentConfig agentConfig,
+            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
         ToolDataChannel sharedChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();
+        VersatilePassthroughBuffer sharedPassthroughBuffer = passthroughBuffer != null
+                ? passthroughBuffer : new VersatilePassthroughBuffer();
         List<AgentRail> rails = new ArrayList<>();
 
         // 取消类 Rail 优先注册，使取消信号尽早生效。
@@ -155,7 +168,7 @@ public class EdpaAgentEnhancer {
         // MCP / VA / ask_user Rail 负责工具调用前后的业务中断和参数增强。
         rails.add(new McpInterruptRail(edpConfig, sharedChannel, skillsDir));
         rails.add(new VersatileInterruptRail(edpConfig, agentConfig != null ? agentConfig.getVersatile() : null,
-                sharedChannel));
+                sharedChannel, sharedPassthroughBuffer));
         rails.add(new AskUserTemplateRail(edpConfig));
         // Log Rail 负责观测日志。
         // 记忆功能由 DeepAgent 原生 harness.rails.MemoryRail 提供，通过 DeepAgentConfig 配置启用。
@@ -187,7 +200,13 @@ public class EdpaAgentEnhancer {
      */
     private static void registerBusinessRails(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir) {
-        List<AgentRail> rails = buildBusinessRails(edpConfig, agentConfig, toolDataChannel, skillsDir);
+        registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
+    }
+
+    private static void registerBusinessRails(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
+            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
+        List<AgentRail> rails = buildBusinessRails(edpConfig, agentConfig, toolDataChannel, skillsDir,
+                passthroughBuffer);
         for (AgentRail rail : rails) {
             // Rail 注册在底层 BaseAgent 上，ReAct 执行循环会按事件和优先级触发回调。
             agent.getAgent().registerRail(rail);

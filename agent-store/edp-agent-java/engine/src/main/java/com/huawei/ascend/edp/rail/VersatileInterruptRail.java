@@ -1,5 +1,6 @@
 package com.huawei.ascend.edp.rail;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -9,6 +10,10 @@ import com.huawei.ascend.edp.channel.ToolDataKeyFactory;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
+import com.openjiuwen.core.session.interaction.InteractiveInput;
+import com.openjiuwen.core.singleagent.interrupt.InterruptRequest;
+import com.openjiuwen.core.singleagent.interrupt.ToolInterruptException;
+import com.openjiuwen.core.singleagent.interrupt.ToolInterruptionState;
 import com.openjiuwen.core.singleagent.rail.AgentCallbackContext;
 import com.openjiuwen.core.singleagent.rail.AgentRail;
 import com.openjiuwen.core.singleagent.rail.ToolCallInputs;
@@ -21,8 +26,15 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Versatile Agent 委托调用 Rail。
@@ -53,6 +65,7 @@ public class VersatileInterruptRail extends AgentRail {
 
     private final EdpAgentConfig.Versatile versatileConfig;
     private final ToolDataChannel toolDataChannel;
+    private final VersatilePassthroughBuffer passthroughBuffer;
     private final HttpClient httpClient;
 
     /**
@@ -70,9 +83,15 @@ public class VersatileInterruptRail extends AgentRail {
 
     public VersatileInterruptRail(EdpConfig edpConfig, EdpAgentConfig.Versatile versatileConfig,
             ToolDataChannel toolDataChannel) {
+        this(edpConfig, versatileConfig, toolDataChannel, new VersatilePassthroughBuffer());
+    }
+
+    public VersatileInterruptRail(EdpConfig edpConfig, EdpAgentConfig.Versatile versatileConfig,
+            ToolDataChannel toolDataChannel, VersatilePassthroughBuffer passthroughBuffer) {
         this.edpConfig = edpConfig;
         this.versatileConfig = versatileConfig;
         this.toolDataChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();
+        this.passthroughBuffer = passthroughBuffer != null ? passthroughBuffer : new VersatilePassthroughBuffer();
         Duration timeout = versatileConfig != null ? parseTimeout(versatileConfig.getTimeout()) : Duration.ofSeconds(30);
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(timeout)
@@ -97,11 +116,28 @@ public class VersatileInterruptRail extends AgentRail {
 
         // 关键判断：只拦截 call_versatile，其他工具直接放行。
         if ("call_versatile".equals(toolName)) {
+            String toolCallId = toolCallId(inputs);
+            Object resumeInput = resolveResumeInput(ctx, toolCallId);
+            if (resumeInput != null) {
+                LOGGER.info("VersatileInterruptRail: resuming call_versatile with adapter result, toolCallId={}",
+                        toolCallId);
+                ctx.getExtra().put("_skip_tool", Boolean.TRUE);
+                Object toolResult = normalizeResumeToolResult(resumeInput);
+                inputs.setToolResult(toolResult);
+                inputs.setToolMsg(ToolMessage.builder()
+                        .content(toJson(toolResult))
+                        .toolCallId(toolCallId)
+                        .build());
+                return;
+            }
             LOGGER.info("VersatileInterruptRail: intercepting call_versatile, direct call to versatile service");
 
             ctx.getExtra().put("_skip_tool", Boolean.TRUE);
 
             Map<String, Object> toolResult = callVersatile(inputs, ctx);
+            if (isInputRequired(toolResult)) {
+                throw inputRequiredInterrupt(ctx, inputs, toolResult);
+            }
             inputs.setToolResult(toolResult);
             inputs.setToolMsg(ToolMessage.builder()
                     .content(toJson(toolResult))
@@ -118,35 +154,96 @@ public class VersatileInterruptRail extends AgentRail {
             Map<String, Object> args = normalizeArgs(inputs);
             String conversationId = ctx.getSession() != null && ctx.getSession().getSessionId() != null
                     ? ctx.getSession().getSessionId() : "call-versatile-spike";
-            String url = resolveUrl(conversationId);
-            Map<String, Object> body = Map.of("inputs", buildInputs(args, ctx), "stream", true);
-            String bodyJson = OBJECT_MAPPER.writeValueAsString(body);
-            LOGGER.info("VersatileInterruptRail: request body {}", bodyJson);
-
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(parseTimeout(versatileConfig.getTimeout()))
-                    .POST(HttpRequest.BodyPublishers.ofString(bodyJson, StandardCharsets.UTF_8));
-            Map<String, String> headers = versatileConfig.getHeaders() != null
-                    ? versatileConfig.getHeaders() : Map.of();
-            headers.forEach(builder::header);
-            if (!hasHeader(headers, "content-type")) {
-                builder.header("Content-Type", "application/json");
-            }
-
-            LOGGER.info("VersatileInterruptRail: POST {}", url);
-            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            LOGGER.info("VersatileInterruptRail: response status={} body={}", response.statusCode(), abbreviate(response.body()));
-            if (response.statusCode() >= 400) {
-                return failedResult("HTTP " + response.statusCode() + ": " + response.body());
-            }
-            String content = normalizeContent(response.body());
-            LOGGER.info("VersatileInterruptRail: normalized content {}", content);
-            return Map.of("source", "versatile", "status", "completed", "content", content);
+            Map<String, Object> versatileInputs = buildInputs(args, ctx);
+            return invokeWithInputs(versatileInputs, conversationId);
         } catch (Exception e) {
             LOGGER.warn("VersatileInterruptRail: direct call failed: {}", e.getMessage());
             return failedResult(e.getMessage());
         }
+    }
+
+    private String toolCallId(ToolCallInputs inputs) {
+        return inputs.getToolCall() != null && inputs.getToolCall().getId() != null
+                && !inputs.getToolCall().getId().isBlank()
+                ? inputs.getToolCall().getId() : "call_versatile";
+    }
+
+    private Object resolveResumeInput(AgentCallbackContext ctx, String toolCallId) {
+        Object rawInput = ctx.getExtra().get(ToolInterruptionState.RESUME_USER_INPUT_KEY);
+        if (rawInput instanceof InteractiveInput interactiveInput) {
+            Map<String, Object> userInputs = interactiveInput.getUserInputs();
+            if (toolCallId != null && !toolCallId.isBlank() && userInputs.containsKey(toolCallId)) {
+                return userInputs.get(toolCallId);
+            }
+            return interactiveInput.getRawInputs();
+        }
+        if (rawInput instanceof Map<?, ?> map && toolCallId != null && !toolCallId.isBlank()
+                && map.containsKey(toolCallId)) {
+            return map.get(toolCallId);
+        }
+        return rawInput;
+    }
+
+    private Object normalizeResumeToolResult(Object resumeInput) {
+        if (resumeInput instanceof String text && !text.isBlank()) {
+            try {
+                return OBJECT_MAPPER.readValue(text, new TypeReference<LinkedHashMap<String, Object>>() { });
+            } catch (Exception e) {
+                return Map.of("source", "versatile", "status", "completed", "content", text);
+            }
+        }
+        return resumeInput;
+    }
+
+    public Map<String, Object> invokeWithInputs(Map<String, Object> versatileInputs, String conversationId) {
+        if (versatileConfig == null) {
+            return failedResult("versatile config is missing");
+        }
+        boolean hasAdapterA2a = versatileConfig.getAdapterA2aUrl() != null
+                && !versatileConfig.getAdapterA2aUrl().isBlank();
+        boolean hasDirectUrl = versatileConfig.getUrl() != null && !versatileConfig.getUrl().isBlank();
+        if (!hasAdapterA2a && !hasDirectUrl) {
+            return failedResult("versatile config is missing");
+        }
+        try {
+            Map<String, Object> result = hasAdapterA2a
+                    ? callVersatileAdapterA2a(versatileInputs, conversationId)
+                    : callVersatileDirect(versatileInputs, conversationId);
+            storePassthroughNodes(conversationId, result);
+            return result;
+        } catch (Exception e) {
+            LOGGER.warn("VersatileInterruptRail: direct call failed: {}", e.getMessage());
+            return failedResult(e.getMessage());
+        }
+    }
+
+    private Map<String, Object> callVersatileDirect(Map<String, Object> versatileInputs, String conversationId)
+            throws Exception {
+        String url = resolveUrl(conversationId);
+        Map<String, Object> body = Map.of("inputs", versatileInputs, "stream", true);
+        String bodyJson = OBJECT_MAPPER.writeValueAsString(body);
+        LOGGER.info("VersatileInterruptRail: request body {}", bodyJson);
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(parseTimeout(versatileConfig.getTimeout()))
+                .POST(HttpRequest.BodyPublishers.ofString(bodyJson, StandardCharsets.UTF_8));
+        Map<String, String> headers = versatileConfig.getHeaders() != null
+                ? versatileConfig.getHeaders() : Map.of();
+        headers.forEach(builder::header);
+        if (!hasHeader(headers, "content-type")) {
+            builder.header("Content-Type", "application/json");
+        }
+
+        LOGGER.info("VersatileInterruptRail: POST {}", url);
+        HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        LOGGER.info("VersatileInterruptRail: response status={} body={}", response.statusCode(), abbreviate(response.body()));
+        if (response.statusCode() >= 400) {
+            return failedResult("HTTP " + response.statusCode() + ": " + response.body());
+        }
+        String content = normalizeContent(response.body());
+        LOGGER.info("VersatileInterruptRail: normalized content {}", content);
+        return Map.of("source", "versatile", "status", "completed", "content", content);
     }
 
     private Map<String, Object> normalizeArgs(ToolCallInputs inputs) {
@@ -155,6 +252,172 @@ public class VersatileInterruptRail extends AgentRail {
             args = normalizeArgsObject(inputs.getToolCall().getArguments());
         }
         return args;
+    }
+
+    private Map<String, Object> callVersatileAdapterA2a(Map<String, Object> versatileInputs, String conversationId)
+            throws Exception {
+        String adapterUrl = versatileConfig.getAdapterA2aUrl();
+        String messageText = OBJECT_MAPPER.writeValueAsString(Map.of("inputs", versatileInputs));
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("role", "ROLE_USER");
+        message.put("messageId", "msg-" + UUID.randomUUID());
+        message.put("contextId", conversationId);
+        message.put("parts", List.of(Map.of("text", messageText)));
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("userId", "edp-agent");
+        metadata.put("agentId", "edp-agent");
+        metadata.put("versatile", Map.of("inputs", versatileInputs));
+
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("metadata", metadata);
+        params.put("message", message);
+
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("jsonrpc", "2.0");
+        requestBody.put("method", "SendStreamingMessage");
+        requestBody.put("id", "call-versatile-" + UUID.randomUUID());
+        requestBody.put("params", params);
+
+        String bodyJson = OBJECT_MAPPER.writeValueAsString(requestBody);
+        LOGGER.info("VersatileInterruptRail: POST adapter A2A {}", adapterUrl);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(adapterUrl))
+                .timeout(parseTimeout(versatileConfig.getTimeout()))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .POST(HttpRequest.BodyPublishers.ofString(bodyJson, StandardCharsets.UTF_8))
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        LOGGER.info("VersatileInterruptRail: adapter A2A status={} body={}",
+                response.statusCode(), abbreviate(response.body()));
+        if (response.statusCode() >= 400) {
+            return failedResult("adapter A2A HTTP " + response.statusCode() + ": " + response.body());
+        }
+        return normalizeA2aAdapterResponse(response.body());
+    }
+
+    private Map<String, Object> normalizeA2aAdapterResponse(String body) throws Exception {
+        List<String> passthroughNodes = new ArrayList<>();
+        String completedContent = "";
+        String state = "";
+        for (String line : body != null ? body.split("\\R") : new String[0]) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) {
+                continue;
+            }
+            String payload = trimmed.substring(5).trim();
+            if (payload.isBlank() || "[DONE]".equals(payload)) {
+                continue;
+            }
+            JsonNode root = OBJECT_MAPPER.readTree(payload);
+            JsonNode result = root.path("result");
+            state = extractA2aState(result, state);
+            String artifactText = extractA2aArtifactText(result);
+            if (!artifactText.isBlank()) {
+                passthroughNodes.add(artifactText);
+            }
+            String terminalText = extractA2aStatusText(result);
+            if (!terminalText.isBlank()) {
+                completedContent = terminalText;
+            }
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        normalized.put("source", "versatile");
+        normalized.put("status", state.equalsIgnoreCase("TASK_STATE_INPUT_REQUIRED") ? "input_required" : "completed");
+        normalized.put("content", completedContent);
+        normalized.put("passthrough_nodes", passthroughNodes);
+        return normalized;
+    }
+
+    private void storePassthroughNodes(AgentCallbackContext ctx, Map<String, Object> toolResult) {
+        storePassthroughNodes(conversationId(ctx), toolResult);
+    }
+
+    private void storePassthroughNodes(String conversationId, Map<String, Object> toolResult) {
+        if (toolResult == null) {
+            return;
+        }
+        Object nodes = toolResult.get("passthrough_nodes");
+        if (!(nodes instanceof List<?> list) || list.isEmpty()) {
+            return;
+        }
+        List<String> normalized = new ArrayList<>();
+        for (Object node : list) {
+            if (node != null && !String.valueOf(node).isBlank()) {
+                normalized.add(String.valueOf(node));
+            }
+        }
+        passthroughBuffer.addAll(conversationId, normalized);
+        LOGGER.info("VersatileInterruptRail: queued passthrough nodes conversationId={} count={}",
+                conversationId, normalized.size());
+    }
+
+    private boolean isInputRequired(Map<String, Object> toolResult) {
+        return toolResult != null && "input_required".equals(String.valueOf(toolResult.get("status")));
+    }
+
+    private ToolInterruptException inputRequiredInterrupt(AgentCallbackContext ctx, ToolCallInputs inputs,
+            Map<String, Object> toolResult) {
+        String toolCallId = inputs.getToolCall() != null && inputs.getToolCall().getId() != null
+                ? inputs.getToolCall().getId() : "call_versatile";
+        passthroughBuffer.rememberInterruptId(conversationId(ctx), toolCallId);
+        LOGGER.info("VersatileInterruptRail: adapter requested user input, toolCallId={}", toolCallId);
+        InterruptRequest request = InterruptRequest.builder()
+                .interruptId(toolCallId)
+                .message("")
+                .context(Map.of("tool", "call_versatile", "result", toolResult))
+                .payloadSchema(Map.of(
+                        "type", "object",
+                        "properties", Map.of(
+                                "query", Map.of("type", "string"),
+                                "menu_type", Map.of("type", "string"),
+                                "menu_confirm", Map.of("type", "boolean"))))
+                .build();
+        return new ToolInterruptException(request, inputs.getToolCall());
+    }
+
+    private String conversationId(AgentCallbackContext ctx) {
+        return ctx.getSession() != null && ctx.getSession().getSessionId() != null
+                ? ctx.getSession().getSessionId() : "call-versatile-spike";
+    }
+
+    private String extractA2aState(JsonNode result, String fallback) {
+        String state = result.path("statusUpdate").path("status").path("state").asText("");
+        if (state.isBlank()) {
+            state = result.path("status").path("state").asText("");
+        }
+        return state.isBlank() ? fallback : state;
+    }
+
+    private String extractA2aArtifactText(JsonNode result) {
+        JsonNode parts = result.path("artifactUpdate").path("artifact").path("parts");
+        return extractPartsText(parts);
+    }
+
+    private String extractA2aStatusText(JsonNode result) {
+        JsonNode parts = result.path("statusUpdate").path("status").path("message").path("parts");
+        if (!parts.isArray() || parts.isEmpty()) {
+            parts = result.path("status").path("message").path("parts");
+        }
+        return extractPartsText(parts);
+    }
+
+    private String extractPartsText(JsonNode parts) {
+        if (!parts.isArray()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (JsonNode part : parts) {
+            String text = part.path("text").asText("");
+            if (text.isBlank()) {
+                text = part.path("content").asText("");
+            }
+            if (!text.isBlank()) {
+                builder.append(text);
+            }
+        }
+        return builder.toString();
     }
 
     private Map<String, Object> normalizeArgsObject(Object toolArgs) {
@@ -395,6 +658,84 @@ public class VersatileInterruptRail extends AgentRail {
         // 关键判断：只记录 call_versatile 完成事件。
         if ("call_versatile".equals(toolName)) {
             LOGGER.info("VersatileInterruptRail: call_versatile completed, cascade result received");
+        }
+    }
+
+    /**
+     * Conversation-scoped buffer for adapter USER nodes that must be flushed on
+     * the parent EDP A2A stream.
+     */
+    public static final class VersatilePassthroughBuffer {
+
+        private final Map<String, Deque<String>> nodesByConversation = new HashMap<>();
+        private final Map<String, String> interruptIdsByConversation = new HashMap<>();
+
+        public void addAll(String conversationId, Collection<String> nodes) {
+            if (conversationId == null || conversationId.isBlank() || nodes == null || nodes.isEmpty()) {
+                return;
+            }
+            synchronized (nodesByConversation) {
+                Deque<String> queue = nodesByConversation.computeIfAbsent(conversationId, ignored -> new ArrayDeque<>());
+                for (String node : nodes) {
+                    if (node != null && !node.isBlank()) {
+                        queue.addLast(node);
+                    }
+                }
+            }
+        }
+
+        public String poll(String conversationId) {
+            if (conversationId == null || conversationId.isBlank()) {
+                return null;
+            }
+            synchronized (nodesByConversation) {
+                Deque<String> queue = nodesByConversation.get(conversationId);
+                if (queue == null) {
+                    return null;
+                }
+                String node = queue.pollFirst();
+                if (queue.isEmpty()) {
+                    nodesByConversation.remove(conversationId);
+                }
+                return node;
+            }
+        }
+
+        public boolean hasPending(String conversationId) {
+            if (conversationId == null || conversationId.isBlank()) {
+                return false;
+            }
+            synchronized (nodesByConversation) {
+                Deque<String> queue = nodesByConversation.get(conversationId);
+                return queue != null && !queue.isEmpty();
+            }
+        }
+
+        public void clear(String conversationId) {
+            if (conversationId != null && !conversationId.isBlank()) {
+                synchronized (nodesByConversation) {
+                    nodesByConversation.remove(conversationId);
+                }
+            }
+        }
+
+        public void rememberInterruptId(String conversationId, String interruptId) {
+            if (conversationId == null || conversationId.isBlank()
+                    || interruptId == null || interruptId.isBlank()) {
+                return;
+            }
+            synchronized (interruptIdsByConversation) {
+                interruptIdsByConversation.put(conversationId, interruptId);
+            }
+        }
+
+        public String pollInterruptId(String conversationId) {
+            if (conversationId == null || conversationId.isBlank()) {
+                return null;
+            }
+            synchronized (interruptIdsByConversation) {
+                return interruptIdsByConversation.remove(conversationId);
+            }
         }
     }
 }

@@ -131,6 +131,8 @@ public class EdpAgentConfig {
      */
     public static class Versatile {
         private String url;
+        @JsonProperty("adapter_a2a_url")
+        private String adapterA2aUrl;
         private String timeout = "30s";
         @JsonProperty("url_variables")
         private Map<String, String> urlVariables = new LinkedHashMap<>();
@@ -140,6 +142,9 @@ public class EdpAgentConfig {
 
         public String getUrl() { return url; }
         public void setUrl(String url) { this.url = url; }
+
+        public String getAdapterA2aUrl() { return adapterA2aUrl; }
+        public void setAdapterA2aUrl(String adapterA2aUrl) { this.adapterA2aUrl = adapterA2aUrl; }
 
         public String getTimeout() { return timeout; }
         public void setTimeout(String timeout) { this.timeout = timeout; }

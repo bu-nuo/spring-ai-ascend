@@ -5,6 +5,8 @@ import com.huawei.ascend.edp.channel.ToolDataKey;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.openjiuwen.core.foundation.llm.schema.ToolCall;
 import com.openjiuwen.core.session.AgentSessionApi;
+import com.openjiuwen.core.session.interaction.InteractiveInput;
+import com.openjiuwen.core.singleagent.interrupt.ToolInterruptionState;
 import com.openjiuwen.core.singleagent.rail.AgentCallbackContext;
 import com.openjiuwen.core.singleagent.rail.ToolCallInputs;
 import org.junit.jupiter.api.Test;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -64,6 +67,25 @@ class VersatileInterruptRailToolDataTest {
 
         assertEquals("购买第一支理财产品", inputs.get("query"));
         assertEquals("购买第一支理财产品", inputs.get("query_description"));
+    }
+
+    @Test
+    void testBeforeToolCall_ResumeInputBecomesToolResultWithoutAdapterCall() {
+        VersatileInterruptRail rail = new VersatileInterruptRail(null, null, new ToolDataChannel());
+        AgentCallbackContext ctx = buildContext();
+        InteractiveInput resumeInput = new InteractiveInput();
+        resumeInput.update("tool-call-1",
+                "{\"source\":\"versatile\",\"status\":\"completed\",\"content\":\"{\\\"status\\\":\\\"success\\\"}\"}");
+        ctx.getExtra().put(ToolInterruptionState.RESUME_USER_INPUT_KEY, resumeInput);
+
+        rail.beforeToolCall(ctx);
+
+        ToolCallInputs inputs = (ToolCallInputs) ctx.getInputs();
+        assertEquals(Boolean.TRUE, ctx.getExtra().get("_skip_tool"));
+        assertNotNull(inputs.getToolMsg());
+        assertEquals("tool-call-1", inputs.getToolMsg().getToolCallId());
+        assertTrue(String.valueOf(inputs.getToolResult()).contains("completed"));
+        assertTrue(String.valueOf(inputs.getToolMsg().getContent()).contains("success"));
     }
 
     @SuppressWarnings("unchecked")

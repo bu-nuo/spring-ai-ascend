@@ -1,5 +1,7 @@
 package com.huawei.ascend.edp.handler;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.EdpAgentConfig.EnvOverrides;
@@ -12,12 +14,17 @@ import com.huawei.ascend.edp.config.ScenarioConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioDiscoveryConfig;
 import com.huawei.ascend.edp.config.ScenarioScopeConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
+import com.huawei.ascend.edp.rail.VersatileInterruptRail;
+import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuffer;
 import com.huawei.ascend.edp.stream.ScenarioPromptBuilder;
 import com.huawei.ascend.edp.stream.SkillScriptsCollector;
 import com.huawei.ascend.edp.stream.SysScriptsConfig;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenAgentRuntimeHandler;
+import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
+import com.openjiuwen.core.session.interaction.InteractiveInput;
+import com.openjiuwen.core.session.stream.StreamMode;
 import com.openjiuwen.core.singleagent.rail.AgentRail;
 import com.openjiuwen.core.singleagent.BaseAgent;
 import com.openjiuwen.core.singleagent.agents.ReActAgentConfig;
@@ -29,9 +36,12 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * EDPAgent 运行时适配器。
@@ -71,6 +81,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(EdpaRuntimeHandler.class);
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     /**
      * EDPAgent 在 agent-runtime 中注册和路由使用的固定 agentId。
      */
@@ -90,6 +102,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      * EDPAgent 专有配置，来自 edp-config.yaml。
      */
     private EdpConfig edpConfig;
+
+    private final VersatilePassthroughBuffer versatilePassthroughBuffer = new VersatilePassthroughBuffer();
 
     /**
      * 活动场景目录的绝对路径，由 Spring Boot @Value 注入后解析。
@@ -233,7 +247,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         registerSkills(skillsDir);
 
         // 第十一步：注册 EDPAgent 内置业务工具和业务 Rails。
-        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir);
+        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir,
+                versatilePassthroughBuffer);
 
         // 第十二步：加载框架级、场景级、Skill 级话术。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
@@ -408,6 +423,119 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         return List.of();
     }
 
+    @Override
+    protected Iterator<Object> runOpenJiuwenAgentStreaming(BaseAgent agent, Object input, String conversationId,
+            List<StreamMode> streamModes) {
+        Map<String, Object> continuationInputs = extractVersatileContinuationInputs(input);
+        if (continuationInputs != null) {
+            LOGGER.info("runOpenJiuwenAgentStreaming: direct versatile continuation conversationId={} inputs={}",
+                    conversationId, continuationInputs);
+            VersatileInterruptRail rail = new VersatileInterruptRail(
+                    edpConfig, agentConfig != null ? agentConfig.getVersatile() : null,
+                    new ToolDataChannel(), versatilePassthroughBuffer);
+            Map<String, Object> result = rail.invokeWithInputs(continuationInputs, conversationId);
+            if (isTerminalVersatileResult(result)) {
+                String interruptId = versatilePassthroughBuffer.pollInterruptId(conversationId);
+                Object resumeInput = versatileToolResumeInput(conversationId, interruptId, result);
+                Iterator<Object> delegate = super.runOpenJiuwenAgentStreaming(agent, resumeInput, conversationId, streamModes);
+                return new VersatilePassthroughIterator(conversationId, delegate, versatilePassthroughBuffer);
+            }
+            return versatileContinuationResults(conversationId, result).iterator();
+        }
+        Iterator<Object> delegate = super.runOpenJiuwenAgentStreaming(agent, input, conversationId, streamModes);
+        return new VersatilePassthroughIterator(conversationId, delegate, versatilePassthroughBuffer);
+    }
+
+    private Map<String, Object> extractVersatileContinuationInputs(Object input) {
+        if (!(input instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object query = map.get("query");
+        if (!(query instanceof String text) || text.isBlank()) {
+            return null;
+        }
+        Map<String, Object> body = parseJsonObject(text);
+        if (body.isEmpty()) {
+            return null;
+        }
+        Object inputs = body.get("inputs");
+        Map<String, Object> normalized = inputs instanceof Map<?, ?> inputsMap
+                ? normalizeStringMap(inputsMap)
+                : normalizeStringMap(body);
+        return isVersatileMenuConfirmation(normalized) ? normalized : null;
+    }
+
+    private Map<String, Object> parseJsonObject(String text) {
+        try {
+            return OBJECT_MAPPER.readValue(text, new TypeReference<LinkedHashMap<String, Object>>() { });
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    private Map<String, Object> normalizeStringMap(Map<?, ?> map) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        map.forEach((key, value) -> result.put(String.valueOf(key), value));
+        return result;
+    }
+
+    private boolean isVersatileMenuConfirmation(Map<String, Object> inputs) {
+        if (inputs == null || inputs.isEmpty()) {
+            return false;
+        }
+        return inputs.containsKey("menu_type") && inputs.containsKey("menu_confirm");
+    }
+
+    private boolean isTerminalVersatileResult(Map<String, Object> result) {
+        return result != null && "completed".equals(String.valueOf(result.get("status")));
+    }
+
+    private Object versatileToolResumeInput(String conversationId, String interruptId, Map<String, Object> result) {
+        InteractiveInput interactiveInput = new InteractiveInput();
+        interactiveInput.update(interruptId != null && !interruptId.isBlank() ? interruptId : "call_versatile",
+                toJson(result));
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("query", interactiveInput);
+        input.put("conversation_id", conversationId);
+        return input;
+    }
+
+    private List<Object> versatileContinuationResults(String conversationId, Map<String, Object> result) {
+        List<Object> results = new ArrayList<>();
+        drainPassthroughNodes(conversationId, results);
+        String status = result != null ? String.valueOf(result.get("status")) : "failed";
+        if ("input_required".equals(status)) {
+            results.add(AgentExecutionResult.interrupted("", AgentExecutionResult.Target.USER));
+            return results;
+        }
+        if ("failed".equals(status)) {
+            Object content = result != null ? result.get("content") : "adapter call failed";
+            results.add(AgentExecutionResult.failed("VERSATILE_CONTINUATION_FAILED",
+                    content == null ? "adapter call failed" : String.valueOf(content), AgentExecutionResult.Target.BOTH));
+            return results;
+        }
+        Object content = result != null ? result.get("content") : "";
+        results.add(AgentExecutionResult.completed(content == null ? "" : String.valueOf(content),
+                AgentExecutionResult.Target.BOTH));
+        return results;
+    }
+
+    private void drainPassthroughNodes(String conversationId, List<Object> results) {
+        String node = versatilePassthroughBuffer.poll(conversationId);
+        while (node != null) {
+            results.add(AgentExecutionResult.output(node, AgentExecutionResult.Target.USER));
+            node = versatilePassthroughBuffer.poll(conversationId);
+        }
+    }
+
+    private String toJson(Object value) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(value);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to serialize versatile continuation result", e);
+        }
+    }
+
     /**
      * 健康检查接口。
      */
@@ -435,5 +563,61 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      */
     public Path getScenarioHomePath() {
         return scenarioHomePath;
+    }
+
+    private static final class VersatilePassthroughIterator implements Iterator<Object> {
+        private final String conversationId;
+        private final Iterator<Object> delegate;
+        private final VersatilePassthroughBuffer passthroughBuffer;
+        private Object deferredRaw;
+        private boolean delegateDrained;
+
+        private VersatilePassthroughIterator(String conversationId, Iterator<Object> delegate,
+                VersatilePassthroughBuffer passthroughBuffer) {
+            this.conversationId = conversationId;
+            this.delegate = delegate;
+            this.passthroughBuffer = passthroughBuffer;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (passthroughBuffer.hasPending(conversationId) || deferredRaw != null) {
+                return true;
+            }
+            if (delegateDrained || delegate == null) {
+                return false;
+            }
+            boolean hasNext = delegate.hasNext();
+            if (!hasNext) {
+                delegateDrained = true;
+                passthroughBuffer.clear(conversationId);
+            }
+            return hasNext;
+        }
+
+        @Override
+        public Object next() {
+            String node = passthroughBuffer.poll(conversationId);
+            if (node != null) {
+                return AgentExecutionResult.output(node, AgentExecutionResult.Target.USER);
+            }
+            if (deferredRaw != null) {
+                Object raw = deferredRaw;
+                deferredRaw = null;
+                return raw;
+            }
+            if (delegate == null || !delegate.hasNext()) {
+                delegateDrained = true;
+                passthroughBuffer.clear(conversationId);
+                throw new NoSuchElementException();
+            }
+            Object raw = delegate.next();
+            node = passthroughBuffer.poll(conversationId);
+            if (node != null) {
+                deferredRaw = raw;
+                return AgentExecutionResult.output(node, AgentExecutionResult.Target.USER);
+            }
+            return raw;
+        }
     }
 }

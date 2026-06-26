@@ -17,6 +17,7 @@ model:
 
 versatile:
   url: http://localhost:30001/v1/0/agent-manager/workflows/{workflow_id}/conversations/{conversation_id}
+  adapter_a2a_url: http://localhost:8191/a2a
   timeout: 30s
   url_variables:
     workflow_id: mock_workflow

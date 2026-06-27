@@ -357,6 +357,11 @@ def balance_business_result(ctx: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def balance_business_result_json(ctx: dict[str, Any]) -> str:
+    """v6 balance payload as QA result-node text (8191 adapter GXZQAResponseNode contract)."""
+    return json.dumps(balance_business_result(ctx), ensure_ascii=False, separators=(",", ":"))
+
+
 def balance_simple_qa_json(ctx: dict[str, Any]) -> str:
     """Interrupt-style simplified balance QA."""
     conversation_id = str(ctx.get("conversation_id", "") or "default")
@@ -433,6 +438,7 @@ HOOK_REGISTRY: dict[str, Any] = {
     "fund_product_filter_json": fund_product_filter_json,
     "product_buy_response_json": product_buy_response_json,
     "balance_business_result": balance_business_result,
+    "balance_business_result_json": balance_business_result_json,
     "balance_simple_qa_json": balance_simple_qa_json,
     "transfer_response_json": transfer_response_json,
     "transfer_confirmed_simple_json": transfer_confirmed_simple_json,

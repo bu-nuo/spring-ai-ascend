@@ -37,8 +37,9 @@
         "delay_ms": 300
       },
       {
-        "kind": "raw_json",
-        "hook": "balance_business_result",
+        "node_type": "QA",
+        "node_name": "{{config.result_node}}",
+        "text_hook": "balance_business_result_json",
         "delay_ms": 100
       }
     ]

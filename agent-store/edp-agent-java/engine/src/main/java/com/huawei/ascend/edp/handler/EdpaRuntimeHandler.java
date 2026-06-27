@@ -103,6 +103,10 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      */
     private EdpConfig edpConfig;
 
+    /**
+     * Versatile adapter 返回的 USER 透传节点缓冲，与 {@link VersatileInterruptRail} 共享。
+     * 由 {@link VersatilePassthroughIterator} 在 DeepAgent 流式帧之间按序刷出。
+     */
     private final VersatilePassthroughBuffer versatilePassthroughBuffer = new VersatilePassthroughBuffer();
 
     /**
@@ -426,6 +430,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
     @Override
     protected Iterator<Object> runOpenJiuwenAgentStreaming(BaseAgent agent, Object input, String conversationId,
             List<StreamMode> streamModes) {
+        // 菜单确认等 Versatile 续传输入绕过 LLM，直接二次调用 adapter。
         Map<String, Object> continuationInputs = extractVersatileContinuationInputs(input);
         if (continuationInputs != null) {
             LOGGER.info("runOpenJiuwenAgentStreaming: direct versatile continuation conversationId={} inputs={}",
@@ -435,6 +440,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                     new ToolDataChannel(), versatilePassthroughBuffer);
             Map<String, Object> result = rail.invokeWithInputs(continuationInputs, conversationId);
             if (isTerminalVersatileResult(result)) {
+                // 续传完成：把 adapter 结果包装成 InteractiveInput，恢复被中断的 call_versatile。
                 String interruptId = versatilePassthroughBuffer.pollInterruptId(conversationId);
                 Object resumeInput = versatileToolResumeInput(conversationId, interruptId, result);
                 Iterator<Object> delegate = super.runOpenJiuwenAgentStreaming(agent, resumeInput, conversationId, streamModes);
@@ -446,6 +452,9 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         return new VersatilePassthroughIterator(conversationId, delegate, versatilePassthroughBuffer);
     }
 
+    /**
+     * 识别 Versatile 菜单确认续传：query 为 JSON 且同时携带 menu_type 与 menu_confirm。
+     */
     private Map<String, Object> extractVersatileContinuationInputs(Object input) {
         if (!(input instanceof Map<?, ?> map)) {
             return null;
@@ -491,6 +500,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
     }
 
     private Object versatileToolResumeInput(String conversationId, String interruptId, Map<String, Object> result) {
+        // OpenJiuwen 工具中断恢复约定：query 携带 InteractiveInput，key 为 toolCallId。
         InteractiveInput interactiveInput = new InteractiveInput();
         interactiveInput.update(interruptId != null && !interruptId.isBlank() ? interruptId : "call_versatile",
                 toJson(result));
@@ -502,6 +512,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
 
     private List<Object> versatileContinuationResults(String conversationId, Map<String, Object> result) {
         List<Object> results = new ArrayList<>();
+        // 续传路径也要先刷出缓冲中的 USER 透传节点，再发终态帧。
         drainPassthroughNodes(conversationId, results);
         String status = result != null ? String.valueOf(result.get("status")) : "failed";
         if ("input_required".equals(status)) {
@@ -569,6 +580,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         private final String conversationId;
         private final Iterator<Object> delegate;
         private final VersatilePassthroughBuffer passthroughBuffer;
+        /** 当透传节点与 delegate 帧同时就绪时，暂存 delegate 帧以保证 USER 节点优先输出。 */
         private Object deferredRaw;
         private boolean delegateDrained;
 

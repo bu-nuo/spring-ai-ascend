@@ -33,6 +33,7 @@ public class VersatileAgentConfiguration {
     @Bean
     AgentRuntimeHandler versatileAgentRuntimeHandler(
             VersatileProperties props,
+            // node_type 与 node_name 同时命中时才视为终态结果节点，其余 message 完整 JSON 透传。
             @Value("${versatile.result-node-name:}") String resultNodeName) {
         VersatileClient client = new VersatileClient(props);
         return new VersatileAgentRuntimeHandler(

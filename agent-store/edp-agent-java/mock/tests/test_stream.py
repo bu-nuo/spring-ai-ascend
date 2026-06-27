@@ -56,6 +56,15 @@ class StreamSmokeTests(unittest.TestCase):
         self.assertEqual(frames[0].get("menu_type"), "TRANSFER_MENU")
         self.assertFalse(any(f.get("node_type") == "End" for f in frames))
 
+    def test_balance_query_qa_result_node_for_adapter(self) -> None:
+        frames = asyncio.run(collect_sse("balance_query", "查询尾号为6605的卡的余额"))
+        qa_frames = [f for f in frames if f.get("node_type") == "QA"]
+        self.assertTrue(qa_frames, "balance query must emit QA result frame for 8191 adapter")
+        self.assertEqual(qa_frames[-1].get("node_name"), "GXZQAResponseNode")
+        payload = json.loads(qa_frames[-1]["text"])
+        self.assertIn("bankCardBalanceList", payload)
+        self.assertEqual(frames[-1].get("node_type"), "End")
+
 
 if __name__ == "__main__":
     unittest.main()

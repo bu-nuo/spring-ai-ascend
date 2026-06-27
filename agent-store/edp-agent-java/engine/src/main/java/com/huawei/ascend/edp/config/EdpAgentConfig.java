@@ -130,7 +130,9 @@ public class EdpAgentConfig {
      * Versatile 服务配置。
      */
     public static class Versatile {
+        /** Versatile REST 直连地址，含 {conversation_id} 等路径占位符。 */
         private String url;
+        /** adapter-versatile-agent-java 的 A2A SSE 入口；配置后优先于 url 直连。 */
         @JsonProperty("adapter_a2a_url")
         private String adapterA2aUrl;
         private String timeout = "30s";

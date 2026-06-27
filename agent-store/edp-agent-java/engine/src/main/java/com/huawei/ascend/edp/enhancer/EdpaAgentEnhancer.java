@@ -93,6 +93,12 @@ public class EdpaAgentEnhancer {
         enhance(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
     }
 
+    /**
+     * 增强 DeepAgent，并注入与 {@link EdpaRuntimeHandler} 共享的 Versatile 透传缓冲。
+     *
+     * <p>Rail 在 call_versatile 期间写入的 USER 节点需与 handler 层流式迭代器共用同一缓冲，
+     * 才能在 DeepAgent 帧之间按序刷出完整 Versatile JSON。</p>
+     */
     public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
         // 关键判断：DeepAgent 是注册工具和 Rail 的目标对象，缺失时直接失败，避免静默启动。
@@ -151,6 +157,7 @@ public class EdpaAgentEnhancer {
         return buildBusinessRails(edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
     }
 
+    /** @see #enhance(DeepAgent, EdpConfig, EdpAgentConfig, ToolDataChannel, Path, VersatilePassthroughBuffer) */
     public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
         ToolDataChannel sharedChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();

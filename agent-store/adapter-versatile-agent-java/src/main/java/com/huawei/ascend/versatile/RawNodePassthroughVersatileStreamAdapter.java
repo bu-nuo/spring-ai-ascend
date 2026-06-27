@@ -77,6 +77,7 @@ public class RawNodePassthroughVersatileStreamAdapter extends VersatileStreamAda
             Map<String, Object> frame = MAPPER.readValue(jsonText, MAP_TYPE);
             String event = string(frame.get("event"));
             if (event.isBlank() && looksLikeRawNode(frame)) {
+                // 部分 mock/网关只推送裸 node 字段，补 event/data 包装以保持透传格式一致。
                 Map<String, Object> wrapped = new java.util.LinkedHashMap<>();
                 wrapped.put("event", "message");
                 wrapped.put("data", frame);
@@ -94,6 +95,7 @@ public class RawNodePassthroughVersatileStreamAdapter extends VersatileStreamAda
                 case "exception" -> AgentExecutionResult.failed(
                         prefixCode(string(data.get("code"))), string(data.get("message")));
                 case "end" -> complete(resultTexts, "");
+                // 断连但未收到 End 节点：视为用户中断而非终态完成，避免把半帧当 LLM 结果回灌。
                 case "connection_closed" -> hasEnd[0]
                         ? complete(resultTexts, "")
                         : AgentExecutionResult.interrupted("", AgentExecutionResult.Target.USER);
@@ -119,6 +121,7 @@ public class RawNodePassthroughVersatileStreamAdapter extends VersatileStreamAda
             if (!text.isBlank()) {
                 resultTexts.add(text);
             }
+            // 结果节点只参与终态 LLM 汇总，不向前端重复透传。
             LOG.info("versatile result node suppressed node_type={} node_name={}", nodeType, nodeName);
             return null;
         }

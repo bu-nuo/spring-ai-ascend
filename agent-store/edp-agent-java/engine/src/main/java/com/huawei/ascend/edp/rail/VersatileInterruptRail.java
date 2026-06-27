@@ -41,16 +41,18 @@ import java.util.UUID;
  *
  * <p>文件作用：</p>
  * <ul>
- *     <li>在 call_versatile 工具调用前标记远程 Agent 委托信息。</li>
- *     <li>通过 _skip_tool 跳过本地工具执行，避免当前 spike 阶段误执行未接入的真实 VA 调用。</li>
- *     <li>把远程调用元数据写入回调上下文，供后续 runtime 或级联处理扩展使用。</li>
+ *     <li>在 call_versatile 工具调用前拦截并直连 Versatile REST 或 adapter A2A。</li>
+ *     <li>解析 adapter SSE 响应，分离 USER 透传节点与 LLM 终态内容。</li>
+ *     <li>adapter 请求用户输入时抛出 {@link ToolInterruptException}，由 runtime 续传。</li>
+ *     <li>续传恢复时从 {@link ToolInterruptionState#RESUME_USER_INPUT_KEY} 回填工具结果。</li>
  * </ul>
  *
  * <p>对外提供的接口：</p>
  * <ul>
- *     <li>{@link #VersatileInterruptRail(EdpConfig)}：创建 VA 委托 Rail。</li>
  *     <li>{@link #beforeToolCall(AgentCallbackContext)}：工具调用前回调入口。</li>
- *     <li>{@link #afterToolCall(AgentCallbackContext)}：工具调用后回调入口。</li>
+ *     <li>{@link #invokeWithInputs(Map, String)}：供 handler 层 Versatile 菜单续传直接调用。</li>
+ *     <li>{@link VersatilePassthroughBuffer}：与 {@link com.huawei.ascend.edp.handler.EdpaRuntimeHandler}
+ *         共享的会话级 USER 节点缓冲。</li>
  * </ul>
  */
 public class VersatileInterruptRail extends AgentRail {
@@ -65,6 +67,7 @@ public class VersatileInterruptRail extends AgentRail {
 
     private final EdpAgentConfig.Versatile versatileConfig;
     private final ToolDataChannel toolDataChannel;
+    /** 与 EdpaRuntimeHandler 共享，存放 adapter 返回的完整 Versatile message JSON。 */
     private final VersatilePassthroughBuffer passthroughBuffer;
     private final HttpClient httpClient;
 
@@ -117,6 +120,7 @@ public class VersatileInterruptRail extends AgentRail {
         // 关键判断：只拦截 call_versatile，其他工具直接放行。
         if ("call_versatile".equals(toolName)) {
             String toolCallId = toolCallId(inputs);
+            // 续传路径：用户已提交菜单确认等输入，直接回填工具结果，不再重复调 adapter。
             Object resumeInput = resolveResumeInput(ctx, toolCallId);
             if (resumeInput != null) {
                 LOGGER.info("VersatileInterruptRail: resuming call_versatile with adapter result, toolCallId={}",
@@ -136,6 +140,7 @@ public class VersatileInterruptRail extends AgentRail {
 
             Map<String, Object> toolResult = callVersatile(inputs, ctx);
             if (isInputRequired(toolResult)) {
+                // adapter 进入 INPUT_REQUIRED：先刷透传节点，再中断等待用户确认。
                 throw inputRequiredInterrupt(ctx, inputs, toolResult);
             }
             inputs.setToolResult(toolResult);
@@ -169,6 +174,7 @@ public class VersatileInterruptRail extends AgentRail {
     }
 
     private Object resolveResumeInput(AgentCallbackContext ctx, String toolCallId) {
+        // runtime 在中断恢复时把用户输入写入 extra；优先按 toolCallId 精确匹配。
         Object rawInput = ctx.getExtra().get(ToolInterruptionState.RESUME_USER_INPUT_KEY);
         if (rawInput instanceof InteractiveInput interactiveInput) {
             Map<String, Object> userInputs = interactiveInput.getUserInputs();
@@ -195,6 +201,10 @@ public class VersatileInterruptRail extends AgentRail {
         return resumeInput;
     }
 
+    /**
+     * 统一 Versatile 调用入口：优先 adapter A2A，否则 REST 直连。
+     * 调用完成后把 passthrough_nodes 写入共享缓冲供上层流式刷出。
+     */
     public Map<String, Object> invokeWithInputs(Map<String, Object> versatileInputs, String conversationId) {
         if (versatileConfig == null) {
             return failedResult("versatile config is missing");
@@ -254,6 +264,7 @@ public class VersatileInterruptRail extends AgentRail {
         return args;
     }
 
+    /** 通过 adapter-versatile-agent-java 的 A2A SendStreamingMessage 发起 SSE 调用。 */
     private Map<String, Object> callVersatileAdapterA2a(Map<String, Object> versatileInputs, String conversationId)
             throws Exception {
         String adapterUrl = versatileConfig.getAdapterA2aUrl();
@@ -297,6 +308,10 @@ public class VersatileInterruptRail extends AgentRail {
         return normalizeA2aAdapterResponse(response.body());
     }
 
+    /**
+     * 解析 adapter A2A SSE 响应体。
+     * artifactUpdate 中的 text 为 USER 透传节点；statusUpdate 中的 text 为 LLM 终态内容。
+     */
     private Map<String, Object> normalizeA2aAdapterResponse(String body) throws Exception {
         List<String> passthroughNodes = new ArrayList<>();
         String completedContent = "";
@@ -361,6 +376,7 @@ public class VersatileInterruptRail extends AgentRail {
             Map<String, Object> toolResult) {
         String toolCallId = inputs.getToolCall() != null && inputs.getToolCall().getId() != null
                 ? inputs.getToolCall().getId() : "call_versatile";
+        // 记录 interruptId，供续传完成时包装 InteractiveInput 恢复 call_versatile。
         passthroughBuffer.rememberInterruptId(conversationId(ctx), toolCallId);
         LOGGER.info("VersatileInterruptRail: adapter requested user input, toolCallId={}", toolCallId);
         InterruptRequest request = InterruptRequest.builder()
@@ -662,12 +678,16 @@ public class VersatileInterruptRail extends AgentRail {
     }
 
     /**
-     * Conversation-scoped buffer for adapter USER nodes that must be flushed on
-     * the parent EDP A2A stream.
+     * 会话级 Versatile USER 透传缓冲。
+     *
+     * <p>Rail 在 adapter 响应解析阶段写入完整 message JSON；
+     * {@link com.huawei.ascend.edp.handler.EdpaRuntimeHandler} 的流式迭代器
+     * 在 DeepAgent 帧之间按 FIFO 刷出，避免 node_type/menu_type 等字段被降维丢失。</p>
      */
     public static final class VersatilePassthroughBuffer {
 
         private final Map<String, Deque<String>> nodesByConversation = new HashMap<>();
+        /** 中断时的 toolCallId，续传完成后用于构造 InteractiveInput。 */
         private final Map<String, String> interruptIdsByConversation = new HashMap<>();
 
         public void addAll(String conversationId, Collection<String> nodes) {

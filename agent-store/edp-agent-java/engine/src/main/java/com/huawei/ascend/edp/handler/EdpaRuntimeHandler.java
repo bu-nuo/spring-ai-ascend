@@ -9,6 +9,8 @@ import com.huawei.ascend.edp.config.EdpAgentConfigLoader;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.EdpConfigLoader;
 import com.huawei.ascend.edp.config.EdpConfigValidator;
+import com.huawei.ascend.edp.config.GovernanceConfig;
+import com.huawei.ascend.edp.config.GovernanceConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioConfig;
 import com.huawei.ascend.edp.config.ScenarioConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioDiscoveryConfig;
@@ -16,6 +18,7 @@ import com.huawei.ascend.edp.config.ScenarioScopeConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuffer;
+import com.huawei.ascend.edp.stream.PlanrulePromptBuilder;
 import com.huawei.ascend.edp.stream.ScenarioPromptBuilder;
 import com.huawei.ascend.edp.stream.SkillScriptsCollector;
 import com.huawei.ascend.edp.stream.SysScriptsConfig;
@@ -230,31 +233,35 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
             EdpConfigValidator.validateScenarioConfig(scenarioHomePath);
         }
 
-        // 第七步：按场景动态拼接系统提示词。
-        ScenarioConfig scenario = edpConfig.getActiveScenario();
-        String systemPrompt;
-        if (scenario != null && agentConfig.getPrompt() != null && agentConfig.getPrompt().getSystem().isEmpty()) {
-            systemPrompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-        } else {
-            systemPrompt = agentConfig.getPrompt() != null ? agentConfig.getPrompt().getSystem() : "";
-        }
+        // 第七步：加载GovernanceConfig（框架级 + 场景级）。
+        GovernanceConfig governanceConfig = loadGovernanceConfig(yamlDir, scenarioHomePath);
+        LOGGER.info("GovernanceConfig loaded: planrule={}, actrule={}, scriptconfig={}",
+                governanceConfig.getPlanrule() != null ? "present" : "null",
+                governanceConfig.getActrule() != null ? "present" : "null",
+                governanceConfig.getScriptconfig() != null ? "present" : "null");
 
-        // 第八步：构造 DeepAgentConfig。
+        // 第八步：拼接完整系统提示词（planrule + scenario 两部分）。
+        // 第一部分：PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule())
+        // 第二部分：ScenarioPromptBuilder.buildSystemPrompt(scenario)
+        ScenarioConfig scenario = edpConfig.getActiveScenario();
+        String systemPrompt = buildFullSystemPrompt(governanceConfig, scenario, agentConfig);
+
+        // 第九步：构造 DeepAgentConfig。
         // Skill 目录从 scenarioHomePath/skills 解析，不再从 yamlDir.resolve("./skills")。
         Path skillsDir = scenarioHomePath != null ? scenarioHomePath.resolve("skills") : null;
         DeepAgentConfig deepAgentConfig = buildDeepAgentConfig(agentConfig, edpConfig, yamlDir, systemPrompt, skillsDir);
 
-        // 第九步：通过 OpenJiuwen HarnessFactory 创建 DeepAgent。
+        // 第十步：通过 OpenJiuwen HarnessFactory 创建 DeepAgent。
         deepAgent = HarnessFactory.createDeepAgent(deepAgentConfig);
 
-        // 第十步：注册 Skill 目录（从 scenarioHomePath/skills）。
+        // 第十一步：注册 Skill 目录（从 scenarioHomePath/skills）。
         registerSkills(skillsDir);
 
-        // 第十一步：注册 EDPAgent 内置业务工具和业务 Rails。
+        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails。
         EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir,
                 versatilePassthroughBuffer);
 
-        // 第十二步：加载框架级、场景级、Skill 级话术。
+        // 第十三步：加载框架级、场景级、Skill 级话术。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
         if (edpConfig.getUtterances() != null && edpConfig.getUtterances().getConfigPath() != null) {
             Path scriptsConfigPath = yamlDir.resolve(edpConfig.getUtterances().getConfigPath()).toAbsolutePath().normalize();
@@ -273,7 +280,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         }
         LOGGER.info("SysScriptsConfig merged templates: {}", sysScriptsConfig.getTemplates().size());
 
-        // 第十三步：强制完成 DeepAgent 初始化。
+        // 第十四步：强制完成 DeepAgent 初始化。
         deepAgent.ensureInitialized();
 
         LOGGER.info("EdpaRuntimeHandler init completed, agentId={}, deepAgent initialized={}, scenarioHome={}",
@@ -545,6 +552,105 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialize versatile continuation result", e);
         }
+    }
+
+    /**
+     * 加载GovernanceConfig（框架级 + 场景级）。
+     *
+     * <p>配置路径说明：</p>
+     * <ul>
+     *     <li>框架级governance路径：src/main/resources/governance（固定路径，出厂必带）</li>
+     *     <li>场景级governance路径：{scenarioHomePath}/governance（动态路径，从场景目录解析）</li>
+     *     <li>优先级：场景级 > 框架级（场景级配置覆盖框架级配置）</li>
+     * </ul>
+     *
+     * @param yamlDir edp-agent.yaml所在目录（用于解析框架级governance路径）
+     * @param scenarioHomePath 场景目录路径（用于解析场景级governance路径）
+     * @return GovernanceConfig对象，包含planrule、actrule、scriptconfig
+     */
+    private GovernanceConfig loadGovernanceConfig(Path yamlDir, Path scenarioHomePath) {
+        // 框架级governance路径（固定）：src/main/resources/governance
+        Path frameworkGovernancePath = yamlDir.resolve("governance");
+
+        // 场景级governance路径（动态）：{scenarioHomePath}/governance
+        Path scenarioGovernancePath = scenarioHomePath != null ? scenarioHomePath.resolve("governance") : null;
+
+        // 优先级加载：场景级 > 框架级
+        GovernanceConfig governanceConfig;
+        if (scenarioGovernancePath != null && Files.exists(scenarioGovernancePath)) {
+            LOGGER.info("Loading governance config with priority: scenario={}, framework={}", scenarioGovernancePath, frameworkGovernancePath);
+            governanceConfig = GovernanceConfigLoader.loadWithPriority(scenarioGovernancePath, frameworkGovernancePath);
+        } else {
+            LOGGER.info("Loading framework-level governance config: {}", frameworkGovernancePath);
+            governanceConfig = GovernanceConfigLoader.load(frameworkGovernancePath);
+        }
+
+        return governanceConfig;
+    }
+
+    /**
+     * 拼接完整系统提示词（两部分拼接）。
+     *
+     * <p>对应Python版系统提示词拼接方式：</p>
+     * <pre>
+     * system_prompt = _agent_rule.markdown_body  // 第一部分：角色定义、职责边界、行为约束（一到五章节）
+     * system_prompt = f"{system_prompt.strip()}\n\n{build_system_prompt().strip()}"  // 第二部分：工具说明（第六章节）
+     * </pre>
+     *
+     * <p>Java版拼接逻辑：</p>
+     * <ul>
+     *     <li>第一部分：PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule())</li>
+     *     <li>第二部分：ScenarioPromptBuilder.buildSystemPrompt(scenario)</li>
+     *     <li>拼接方式：第一部分 + "\n\n" + 第二部分</li>
+     * </ul>
+     *
+     * <p>向后兼容：如果agentConfig.prompt.system非空，优先使用用户自定义内容</p>
+     *
+     * @param governance GovernanceConfig对象，包含planrule配置
+     * @param scenario ScenarioConfig对象，包含场景级动态内容
+     * @param agentConfig EdpAgentConfig对象，包含用户自定义prompt.system（向后兼容）
+     * @return 完整系统提示词（两部分拼接）
+     */
+    private String buildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario, EdpAgentConfig agentConfig) {
+        // 向后兼容：如果agentConfig.prompt.system非空，优先使用用户自定义内容
+        if (agentConfig.getPrompt() != null && !agentConfig.getPrompt().getSystem().isEmpty()) {
+            LOGGER.info("Using user-defined system prompt from agentConfig.prompt.system (backward compatibility)");
+            return agentConfig.getPrompt().getSystem();
+        }
+
+        // 第一部分：planrule四字段拼接（替代Python版markdown_body）
+        String planruleFragment = "";
+        if (governance != null && governance.getPlanrule() != null) {
+            planruleFragment = PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule());
+            LOGGER.info("Planrule fragment built: length={}", planruleFragment.length());
+        }
+
+        // 第二部分：工具说明 + 场景规则（对应Python版build_system_prompt()）
+        String scenarioFragment = "";
+        if (scenario != null) {
+            scenarioFragment = ScenarioPromptBuilder.buildSystemPrompt(scenario);
+            LOGGER.info("Scenario fragment built: length={}", scenarioFragment.length());
+        } else {
+            // 如果scenario为null，场景提示词部分为空
+            scenarioFragment = "";
+        }
+
+        // 拼接两部分（对应Python版拼接方式）
+        String fullSystemPrompt;
+        if (planruleFragment.isEmpty()) {
+            fullSystemPrompt = scenarioFragment;  // 如果planrule为空，只返回第二部分
+            LOGGER.info("Full system prompt: only scenario fragment (planrule empty)");
+        } else if (scenarioFragment.isEmpty()) {
+            fullSystemPrompt = planruleFragment;  // 如果scenario为空，只返回第一部分
+            LOGGER.info("Full system prompt: only planrule fragment (scenario empty)");
+        } else {
+            fullSystemPrompt = planruleFragment + "\n\n" + scenarioFragment;  // 拼接两部分，中间空行分隔
+            LOGGER.info("Full system prompt: planrule + scenario fragments concatenated");
+        }
+
+        LOGGER.info("Full system prompt built: total length={}", fullSystemPrompt.length());
+        LOGGER.info("=== FULL SYSTEM PROMPT START ===\n{}\n=== FULL SYSTEM PROMPT END ===", fullSystemPrompt);
+        return fullSystemPrompt;
     }
 
     /**

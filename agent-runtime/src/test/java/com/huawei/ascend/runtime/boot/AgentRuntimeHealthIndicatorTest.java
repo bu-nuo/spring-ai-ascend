@@ -10,8 +10,8 @@ import com.huawei.ascend.runtime.engine.spi.RemoteAgentToolSpec;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.Status;
+import org.springframework.boot.health.contributor.Health;
+import org.springframework.boot.health.contributor.Status;
 
 /**
  * First real consumer of {@link AgentRuntimeHandler#isHealthy()}: the runtime

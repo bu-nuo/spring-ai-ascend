@@ -3,6 +3,7 @@ package com.huawei.ascend.edp.handler;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.ascend.edp.channel.ToolDataChannel;
+import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.EdpAgentConfig.EnvOverrides;
 import com.huawei.ascend.edp.config.EdpAgentConfigLoader;
@@ -264,8 +265,9 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
 
         // 第九步：构造 DeepAgentConfig。
         // Skill 目录从 scenarioHomePath/skills 解析，不再从 yamlDir.resolve("./skills")。
+        // 框架配置从 GovernanceConfig.actrule 加载，不再从 framework.options 读取。
         Path skillsDir = scenarioHomePath != null ? scenarioHomePath.resolve("skills") : null;
-        DeepAgentConfig deepAgentConfig = buildDeepAgentConfig(agentConfig, edpConfig, yamlDir, systemPrompt, skillsDir);
+        DeepAgentConfig deepAgentConfig = buildDeepAgentConfig(agentConfig, edpConfig, governanceConfig, systemPrompt, skillsDir);
 
         // 第十步：通过 OpenJiuwen HarnessFactory 创建 DeepAgent。
         deepAgent = HarnessFactory.createDeepAgent(deepAgentConfig);
@@ -380,17 +382,18 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      * 构造 DeepAgentConfig。
      *
      * Skill 目录从 scenarioHomePath/skills 注入，不再从 edp-agent.yaml skills.directories 解析。
+     * 框架配置从 GovernanceConfig.actrule 加载，不再从 framework.options 读取。
      *
      * @param agentConfig 标准 agent 配置
      * @param edpConfig EDP 专有配置
-     * @param yamlDir edp-agent.yaml 所在目录（用于兼容旧逻辑）
+     * @param governanceConfig 治理配置（包含 actrule）
      * @param systemPrompt 系统提示词
      * @param skillsDir 场景级 Skill 目录路径
      * @return DeepAgentConfig
      */
-    private DeepAgentConfig buildDeepAgentConfig(EdpAgentConfig agentConfig, EdpConfig edpConfig, Path yamlDir, String systemPrompt, Path skillsDir) {
+    private DeepAgentConfig buildDeepAgentConfig(EdpAgentConfig agentConfig, EdpConfig edpConfig, GovernanceConfig governanceConfig, String systemPrompt, Path skillsDir) {
         EdpAgentConfig.Model model = agentConfig.getModel();
-        EdpAgentConfig.Options options = agentConfig.getFramework() != null ? agentConfig.getFramework().getOptions() : null;
+        ActRuleConfig actrule = governanceConfig != null ? governanceConfig.getActrule() : null;
         EdpConfig.LlmSampling sampling = edpConfig != null ? edpConfig.getLlmSampling() : null;
 
         Map<String, Object> modelMap = new LinkedHashMap<>();
@@ -423,8 +426,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
 
         return DeepAgentConfig.builder()
                 .systemPrompt(systemPrompt != null ? systemPrompt : "")
-                .maxIterations(options != null && options.getMaxIterations() > 0 ? options.getMaxIterations() : 15)
-                .enableTaskLoop(options != null && options.isEnableTaskLoop())
+                .maxIterations(actrule != null && actrule.getMaxSteps() != null && actrule.getMaxSteps() > 0 ? actrule.getMaxSteps() : 15)
+                .enableTaskLoop(actrule != null && actrule.getEnableTaskLoop() != null ? actrule.getEnableTaskLoop() : false)
                 .enableTaskPlanning(true)
                 .skillDirectories(skillDirs)
                 .skillMode(skillMode)

@@ -15,8 +15,11 @@ actrule:
   # 限制最大重规划次数
   max_replan_count: 3
 
-  # 限制最大执行步数
+  # 限制最大执行步数（从 framework.options.maxIterations 迁移）
   max_steps: 100
+
+  # 是否启用任务循环（从 framework.options.enableTaskLoop 迁移）
+  enable_task_loop: true
 
   # 是否允许失败重试
   retry_enabled: true

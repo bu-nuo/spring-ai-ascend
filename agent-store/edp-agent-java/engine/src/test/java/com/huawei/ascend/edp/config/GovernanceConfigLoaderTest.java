@@ -39,7 +39,7 @@ class GovernanceConfigLoaderTest {
         
         // 验证planrule配置
         assertNotNull(config.getPlanrule(), "planrule配置应存在");
-        assertEquals("通用动态规划智能体角色定位", config.getPlanrule().getRole(), "role字段应正确解析");
+        assertEquals("你的身份是通用动态规划智能体", config.getPlanrule().getRole(), "role字段应正确解析");
         assertNotNull(config.getPlanrule().getScope(), "scope配置应存在");
         
         // 验证actrule配置

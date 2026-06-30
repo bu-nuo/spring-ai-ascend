@@ -2,12 +2,15 @@ schema: ascend-agent/v1
 name: edp-agent
 description: EDP 动态规划智能体
 
-framework:
-  type: openjiuwen
-  agent: deepagent
-  options:
-    maxIterations: 100
-    enableTaskLoop: true
+#framework:
+  #type: openjiuwen
+  #agent: deepagent
+  # options 配置已迁移到 governance/actrule.yaml
+  # maxIterations → actrule.max_steps
+  # enableTaskLoop → actrule.enable_task_loop
+  # options:
+  #   maxIterations: 100
+  #   enableTaskLoop: true
 
 model:
   provider: OpenAI

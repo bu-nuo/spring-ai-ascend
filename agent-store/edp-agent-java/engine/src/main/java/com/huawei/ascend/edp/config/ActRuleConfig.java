@@ -36,6 +36,9 @@ public class ActRuleConfig {
     /** 允许调用的工具列表（继承式覆盖）。 */
     private List<String> allowedTools;
 
+    /** 是否启用任务循环（从 framework.options.enableTaskLoop 迁移）。 */
+    private Boolean enableTaskLoop;
+
     public Integer getMaxSubtasks() { return maxSubtasks; }
     public void setMaxSubtasks(Integer maxSubtasks) { this.maxSubtasks = maxSubtasks; }
 
@@ -56,4 +59,7 @@ public class ActRuleConfig {
 
     public List<String> getAllowedTools() { return allowedTools; }
     public void setAllowedTools(List<String> allowedTools) { this.allowedTools = allowedTools; }
+
+    public Boolean getEnableTaskLoop() { return enableTaskLoop; }
+    public void setEnableTaskLoop(Boolean enableTaskLoop) { this.enableTaskLoop = enableTaskLoop; }
 }

@@ -129,6 +129,9 @@ public class GovernanceConfig {
         if (scenarioActrule.getAllowedTools() != null) {
             this.actrule.setAllowedTools(scenarioActrule.getAllowedTools());
         }
+        if (scenarioActrule.getEnableTaskLoop() != null) {
+            this.actrule.setEnableTaskLoop(scenarioActrule.getEnableTaskLoop());
+        }
     }
 
     /**

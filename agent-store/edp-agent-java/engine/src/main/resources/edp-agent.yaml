@@ -31,8 +31,9 @@ versatile:
     content-type: application/json
     stream: "true"
 
-prompt:
-  system: ""
+#prompt:
+  # system 从未被使用，系统提示词由 planrule.yaml + 场景配置动态拼接
+  # system: ""
 
 # Skill 目录不再在 YAML 中硬编码（方案 B）。
 # 业务 Skill 从 scenarioHome/skills/ 动态加载，由 Spring Boot @Value 注入路径。

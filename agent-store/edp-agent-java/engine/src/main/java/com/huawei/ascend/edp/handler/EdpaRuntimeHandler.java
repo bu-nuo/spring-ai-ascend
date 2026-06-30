@@ -261,7 +261,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第一部分：PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule())
         // 第二部分：ScenarioPromptBuilder.buildSystemPrompt(scenario)
         ScenarioConfig scenario = edpConfig.getActiveScenario();
-        String systemPrompt = buildFullSystemPrompt(governanceConfig, scenario, agentConfig);
+        String systemPrompt = buildFullSystemPrompt(governanceConfig, scenario);
 
         // 第九步：构造 DeepAgentConfig。
         // Skill 目录从 scenarioHomePath/skills 解析，不再从 yamlDir.resolve("./skills")。
@@ -625,19 +625,11 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      *     <li>拼接方式：第一部分 + "\n\n" + 第二部分</li>
      * </ul>
      *
-     * <p>向后兼容：如果agentConfig.prompt.system非空，优先使用用户自定义内容</p>
-     *
      * @param governance GovernanceConfig对象，包含planrule配置
      * @param scenario ScenarioConfig对象，包含场景级动态内容
-     * @param agentConfig EdpAgentConfig对象，包含用户自定义prompt.system（向后兼容）
      * @return 完整系统提示词（两部分拼接）
      */
-    private String buildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario, EdpAgentConfig agentConfig) {
-        // 向后兼容：如果agentConfig.prompt.system非空，优先使用用户自定义内容
-        if (agentConfig.getPrompt() != null && !agentConfig.getPrompt().getSystem().isEmpty()) {
-            LOGGER.info("Using user-defined system prompt from agentConfig.prompt.system (backward compatibility)");
-            return agentConfig.getPrompt().getSystem();
-        }
+    private String buildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario) {
 
         // 第一部分：planrule四字段拼接（替代Python版markdown_body）
         String planruleFragment = "";

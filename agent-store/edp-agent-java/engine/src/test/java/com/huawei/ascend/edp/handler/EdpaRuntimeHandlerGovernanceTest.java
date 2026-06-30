@@ -1,6 +1,5 @@
 package com.huawei.ascend.edp.handler;
 
-import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.GovernanceConfig;
 import com.huawei.ascend.edp.config.PlanRuleConfig;
 import com.huawei.ascend.edp.config.ScenarioConfig;
@@ -19,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *     <li>完整GovernanceConfig拼接测试</li>
  *     <li>GovernanceConfig缺失降级测试</li>
  *     <li>ScenarioConfig缺失降级测试</li>
- *     <li>向后兼容测试（agentConfig.prompt.system非空）</li>
+ *     <li>prompt.system 已移除验证（不再依赖 agentConfig）</li>
  *     <li>GovernanceConfigLoader加载测试（框架级）</li>
  *     <li>GovernanceConfigLoader加载测试（场景级优先）</li>
  * </ul>
@@ -53,30 +52,23 @@ class EdpaRuntimeHandlerGovernanceTest {
         scenario.setName("wealth-demo");
         scenario.setDescription("理财推荐场景");
 
-        // 构造EdpAgentConfig（prompt.system为空）
-        EdpAgentConfig agentConfig = new EdpAgentConfig();
-        EdpAgentConfig.Prompt prompt = new EdpAgentConfig.Prompt();
-        prompt.setSystem("");  // prompt.system为空，使用新逻辑
-        agentConfig.setPrompt(prompt);
-
-        // 使用反射调用buildFullSystemPrompt()方法（因为它是private方法）
-        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario, agentConfig);
+        // 使用反射调用buildFullSystemPrompt()方法（private方法，已移除agentConfig参数）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
 
         // 验证拼接结果包含两部分
-        // 第一部分：planrule四字段（一到五章节）
+        // 第一部分：planrule四字段（role, description, scope, supplementaryPrompt）
         assertTrue(systemPrompt.contains("# 通用动态规划智能体角色定位"));
         assertTrue(systemPrompt.contains("负责任务规划、执行和结果总结的智能助手"));
-        assertTrue(systemPrompt.contains("## 一、业务范围"));
         assertTrue(systemPrompt.contains("超出范围提示：尚在学习中，暂不支持该业务"));
         assertTrue(systemPrompt.contains("## 二、行为约束"));
+        assertTrue(systemPrompt.contains("暂停当前任务，重新规划"));
 
-        // 第二部分：ScenarioPromptBuilder（六到七章节）
-        assertTrue(systemPrompt.contains("## 六、技能与工具补充"));
-        assertTrue(systemPrompt.contains("### 6.1 可用工具"));
-        assertTrue(systemPrompt.contains("### 6.2 工具调用架构"));
+        // 第二部分：ScenarioPromptBuilder
+        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
+        assertTrue(systemPrompt.contains("理财推荐场景"));
 
         // 验证两部分正确拼接（中间有"\n\n"分隔）
-        assertTrue(systemPrompt.contains("\n\n## 六、技能与工具补充"));
+        assertTrue(systemPrompt.contains("\n\n**当前场景**"));
     }
 
     /**
@@ -93,17 +85,11 @@ class EdpaRuntimeHandlerGovernanceTest {
         ScenarioConfig scenario = new ScenarioConfig();
         scenario.setName("wealth-demo");
 
-        // 构造EdpAgentConfig（prompt.system为空）
-        EdpAgentConfig agentConfig = new EdpAgentConfig();
-        EdpAgentConfig.Prompt prompt = new EdpAgentConfig.Prompt();
-        prompt.setSystem("");
-        agentConfig.setPrompt(prompt);
+        // 调用buildFullSystemPrompt()（GovernanceConfig为null）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
 
-        // 调用buildFullSystemPrompt()
-        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario, agentConfig);
-
-        // 验证只返回第二部分（ScenarioPromptBuilder.buildSystemPrompt(scenario)）
-        assertTrue(systemPrompt.contains("## 六、技能与工具补充"));
+        // 验证只返回 ScenarioPromptBuilder.buildSystemPrompt(scenario) 的结果
+        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
         assertFalse(systemPrompt.contains("# 通用动态规划智能体"));  // planrule缺失，不应包含第一部分
     }
 
@@ -124,51 +110,45 @@ class EdpaRuntimeHandlerGovernanceTest {
         // ScenarioConfig为null
         ScenarioConfig scenario = null;
 
-        // 构造EdpAgentConfig（prompt.system为空）
-        EdpAgentConfig agentConfig = new EdpAgentConfig();
-        EdpAgentConfig.Prompt prompt = new EdpAgentConfig.Prompt();
-        prompt.setSystem("");
-        agentConfig.setPrompt(prompt);
+        // 调用buildFullSystemPrompt()（ScenarioConfig为null）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
 
-        // 调用buildFullSystemPrompt()
-        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario, agentConfig);
-
-        // 验证只返回第一部分（PlanrulePromptBuilder.buildSystemPromptFragment(planrule)）
+        // 验证只返回 PlanrulePromptBuilder.buildSystemPromptFragment(planrule) 的结果
         assertTrue(systemPrompt.contains("# 理财推荐智能体"));
         assertTrue(systemPrompt.contains("理财产品推荐智能助手"));
-        assertTrue(systemPrompt.contains("## 六、技能与工具补充"));  // scenario为null时，会降级使用BASE_PROMPT
+        // scenario 为 null 时，scenarioFragment 为空字符串，不会包含 scenario 内容
+        assertFalse(systemPrompt.contains("**当前场景**"));
     }
 
     /**
-     * 测试用例4：向后兼容测试（agentConfig.prompt.system非空）。
+     * 测试用例4：prompt.system 已移除验证。
      *
-     * <p>验证向后兼容逻辑（agentConfig.prompt.system非空时使用原有逻辑）</p>
+     * <p>验证 buildFullSystemPrompt 不再依赖 agentConfig.prompt.system，始终使用 governance + scenario 拼接逻辑</p>
      */
     @Test
-    void testBuildFullSystemPromptWithNonEmptyAgentConfigPrompt() {
+    void testBuildFullSystemPromptNoLongerDependsOnAgentConfig() {
         // 构造GovernanceConfig
         GovernanceConfig governance = new GovernanceConfig();
         PlanRuleConfig planrule = new PlanRuleConfig();
         planrule.setRole("理财推荐智能体");
+        planrule.setDescription("理财产品推荐智能助手");
         governance.setPlanrule(planrule);
 
         // 构造ScenarioConfig
         ScenarioConfig scenario = new ScenarioConfig();
         scenario.setName("wealth-demo");
 
-        // 构造EdpAgentConfig（prompt.system非空）
-        EdpAgentConfig agentConfig = new EdpAgentConfig();
-        EdpAgentConfig.Prompt prompt = new EdpAgentConfig.Prompt();
-        prompt.setSystem("自定义系统提示词，用于向后兼容测试");  // prompt.system非空，向后兼容
-        agentConfig.setPrompt(prompt);
+        // 直接调用（不再需要 EdpAgentConfig 参数）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
 
-        // 调用buildFullSystemPrompt()
-        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario, agentConfig);
-
-        // 验证返回agentConfig.prompt.system的内容（向后兼容）
-        assertEquals("自定义系统提示词，用于向后兼容测试", systemPrompt);
-        assertFalse(systemPrompt.contains("# 理财推荐智能体"));  // 向后兼容，不使用新逻辑
-        assertFalse(systemPrompt.contains("## 六、技能与工具补充"));  // 向后兼容，不使用新逻辑
+        // 验证返回的是 governance + scenario 拼接结果，而非任何 agentConfig 内容
+        assertTrue(systemPrompt.contains("# 理财推荐智能体"));
+        assertTrue(systemPrompt.contains("理财产品推荐智能助手"));
+        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
+        assertTrue(systemPrompt.contains("\n\n**当前场景**"));  // 两部分正确拼接
+        // 验证不再依赖 agentConfig.prompt.system
+        assertFalse(systemPrompt.contains("向后兼容"));
+        assertFalse(systemPrompt.contains("agentConfig"));
     }
 
     /**
@@ -194,8 +174,8 @@ class EdpaRuntimeHandlerGovernanceTest {
         assertNotNull(governance.getScriptconfig(), "scriptconfig should be loaded from framework-level governance");
 
         // 验证planrule内容
-        assertEquals("通用动态规划智能体角色定位", governance.getPlanrule().getRole());
-        assertEquals("负责任务规划、执行和结果总结的智能助手", governance.getPlanrule().getDescription());
+        assertEquals("你的身份是通用动态规划智能体", governance.getPlanrule().getRole());
+        assertTrue(governance.getPlanrule().getDescription().contains("任务规划"));
     }
 
     /**
@@ -229,19 +209,15 @@ class EdpaRuntimeHandlerGovernanceTest {
     }
 
     /**
-     * 使用反射调用buildFullSystemPrompt()方法（private方法）。
+     * 使用反射调用buildFullSystemPrompt()方法（private方法，已移除agentConfig参数）。
      */
-    private String invokeBuildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario, EdpAgentConfig agentConfig) {
+    private String invokeBuildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario) {
         try {
-            // 创建EdpaRuntimeHandler实例
             EdpaRuntimeHandler handler = new EdpaRuntimeHandler();
-
-            // 使用反射调用private方法
             java.lang.reflect.Method method = EdpaRuntimeHandler.class.getDeclaredMethod(
-                    "buildFullSystemPrompt", GovernanceConfig.class, ScenarioConfig.class, EdpAgentConfig.class);
+                    "buildFullSystemPrompt", GovernanceConfig.class, ScenarioConfig.class);
             method.setAccessible(true);
-
-            return (String) method.invoke(handler, governance, scenario, agentConfig);
+            return (String) method.invoke(handler, governance, scenario);
         } catch (Exception e) {
             throw new RuntimeException("Failed to invoke buildFullSystemPrompt method", e);
         }

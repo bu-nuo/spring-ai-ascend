@@ -52,19 +52,6 @@ class EdpAgentConfigLoaderTest {
     }
 
     @Test
-    void testLoad_EmptySystemPrompt() {
-        Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
-        if (Files.exists(yamlPath)) {
-            EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getPrompt(), "prompt 不应为 null");
-            assertEquals("", config.getPrompt().getSystem(),
-                    "系统提示词应为空（动态生成，由 ScenarioPromptBuilder 拼接）");
-        } else {
-            System.out.println("SKIP: edp-agent.yaml not found");
-        }
-    }
-
-    @Test
     void testLoad_NonExistentFile() {
         // EdpAgentConfigLoader 对不存在文件返回默认对象（降级设计）
         EdpAgentConfig config = EdpAgentConfigLoader.load(Path.of("/nonexistent/edp-agent.yaml"));

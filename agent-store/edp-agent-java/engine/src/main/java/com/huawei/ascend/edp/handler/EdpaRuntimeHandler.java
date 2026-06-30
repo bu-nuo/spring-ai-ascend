@@ -4,9 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.config.ActRuleConfig;
-import com.huawei.ascend.edp.config.EdpAgentConfig;
-import com.huawei.ascend.edp.config.EdpAgentConfig.EnvOverrides;
-import com.huawei.ascend.edp.config.EdpAgentConfigLoader;
+import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.EdpConfigLoader;
 import com.huawei.ascend.edp.config.EdpConfigValidator;
@@ -101,9 +99,10 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
     private DeepAgent deepAgent;
 
     /**
-     * EDPAgent 标准配置，来自 edp-agent.yaml。
+     * EDPAgent model / versatile 配置，来自 application.yml（Spring Boot 自动绑定）。
+     * 替代原先 edp-agent.yaml 中 model + versatile 的 Jackson 直读。
      */
-    private EdpAgentConfig agentConfig;
+    private EdpaSpringBootConfig springBootConfig;
 
     /**
      * EDPAgent 专有配置，来自 edp-config.yaml。
@@ -134,23 +133,15 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
     /**
      * 初始化 EDPAgent（兼容旧接口，不含 scenarioHome）。
      */
-    public void init(String yamlPath, String configPath) {
-        init(yamlPath, configPath, null, null);
+    public void init(EdpaSpringBootConfig springBootConfig, String configPath) {
+        init(springBootConfig, configPath, null);
     }
 
     /**
-     * 初始化 EDPAgent，支持环境变量覆盖密钥类配置。
-     */
-    public void init(String yamlPath, String configPath, EnvOverrides envOverrides) {
-        init(yamlPath, configPath, envOverrides, null);
-    }
-
-    /**
-     * 初始化 EDPAgent，支持环境变量覆盖密钥类配置和场景路径注入。
+     * 初始化 EDPAgent，支持场景路径注入。
      *
      * <p>作用：</p>
      * <ul>
-     *     <li>加载标准 agent YAML 配置。</li>
      *     <li>加载 EDP 专有配置。</li>
      *     <li>从 scenarioHome 加载场景配置和业务 Skill。</li>
      *     <li>合成 DeepAgentConfig 并创建 DeepAgent。</li>
@@ -158,25 +149,19 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      *     <li>触发 DeepAgent 初始化，确保后续 A2A 请求可直接执行。</li>
      * </ul>
      *
-     * @param yamlPath 标准 agent YAML 配置路径
+     * @param springBootConfig model / versatile 配置（Spring Boot 自动绑定）
      * @param configPath EDP 专有配置路径
-     * @param envOverrides 环境变量覆盖配置，null 时不从环境变量注入
      * @param scenarioHome 活动场景目录路径，由 Spring Boot @Value 注入；null 时回退到 yamlDir 解析
      */
-    public void init(String yamlPath, String configPath, EnvOverrides envOverrides, String scenarioHome) {
-        LOGGER.info("EdpaRuntimeHandler init start, yamlPath={}, configPath={}, scenarioHome={}", yamlPath, configPath, scenarioHome);
+    public void init(EdpaSpringBootConfig springBootConfig, String configPath, String scenarioHome) {
+        LOGGER.info("EdpaRuntimeHandler init start, configPath={}, scenarioHome={}", configPath, scenarioHome);
 
-        // 第一步：加载标准 Agent 配置。
-        agentConfig = EdpAgentConfigLoader.load(Path.of(yamlPath));
+        // 第一步：存储 Spring Boot 配置（替代 edp-agent.yaml）。
+        this.springBootConfig = springBootConfig;
 
-        // 第二步：应用环境变量覆盖密钥类配置。
-        if (envOverrides != null) {
-            applyEnvOverrides(envOverrides);
-        }
-
-        // 第三步：加载 EDP 专有配置。
+        // 第二步：加载 EDP 专有配置。
         edpConfig = EdpConfigLoader.load(Path.of(configPath));
-        Path yamlDir = Path.of(yamlPath).toAbsolutePath().normalize().getParent();
+        Path yamlDir = Path.of(configPath).toAbsolutePath().normalize().getParent();
 
         // 第四步：解析 scenarioHome 路径。
         // scenarioHome 优先由 Spring Boot @Value 注入，指向活动场景目录（如 scenarios/wealth-demo）。
@@ -243,8 +228,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         }
 
         // 第六步：配置校验 fail-fast。
-        EdpConfigValidator.validateModelConfig(agentConfig);
-        EdpConfigValidator.validateVersatileUrl(agentConfig);
+        EdpConfigValidator.validateModelConfig(springBootConfig.getModel());
+        EdpConfigValidator.validateVersatileUrl(springBootConfig.getVersatile());
         EdpConfigValidator.validateTodolistSteps(edpConfig);
         if (scenarioHomePath != null) {
             EdpConfigValidator.validateScenarioConfig(scenarioHomePath);
@@ -267,7 +252,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // Skill 目录从 scenarioHomePath/skills 解析，不再从 yamlDir.resolve("./skills")。
         // 框架配置从 GovernanceConfig.actrule 加载，不再从 framework.options 读取。
         Path skillsDir = scenarioHomePath != null ? scenarioHomePath.resolve("skills") : null;
-        DeepAgentConfig deepAgentConfig = buildDeepAgentConfig(agentConfig, edpConfig, governanceConfig, systemPrompt, skillsDir);
+        DeepAgentConfig deepAgentConfig = buildDeepAgentConfig(springBootConfig, edpConfig, governanceConfig, systemPrompt, skillsDir);
 
         // 第十步：通过 OpenJiuwen HarnessFactory 创建 DeepAgent。
         deepAgent = HarnessFactory.createDeepAgent(deepAgentConfig);
@@ -275,8 +260,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第十一步：注册 Skill 目录（从 scenarioHomePath/skills）。
         registerSkills(skillsDir);
 
-        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails（按 actrule.allowed_tools 配置驱动，含 Todo 增强 + 思维链事件）。
-        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig,
+        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails（按 actrule.allowed_tools 配置驱动）。
+        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, springBootConfig,
                 governanceConfig != null ? governanceConfig.getActrule() : null,
                 new ToolDataChannel(), skillsDir, versatilePassthroughBuffer, deepAgent, edpaTodolist);
 
@@ -304,47 +289,6 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
 
         LOGGER.info("EdpaRuntimeHandler init completed, agentId={}, deepAgent initialized={}, scenarioHome={}",
                 AGENT_ID, deepAgent.isInitialized(), scenarioHomePath);
-    }
-
-    /**
-     * 应用环境变量覆盖密钥类配置。
-     */
-    private void applyEnvOverrides(EnvOverrides overrides) {
-        if (overrides == null) return;
-
-        EdpAgentConfig.Model model = agentConfig.getModel();
-        if (model == null) {
-            model = new EdpAgentConfig.Model();
-            agentConfig.setModel(model);
-        }
-
-        if (overrides.getApiKey() != null && !overrides.getApiKey().isBlank()) {
-            model.setApiKey(overrides.getApiKey());
-            LOGGER.info("Env override applied: apiKey from EDP_AGENT_MODEL_API_KEY");
-        }
-
-        if (overrides.getModelProvider() != null && !overrides.getModelProvider().isBlank()) {
-            model.setProvider(overrides.getModelProvider());
-            LOGGER.info("Env override applied: modelProvider={}", overrides.getModelProvider());
-        }
-
-        if (overrides.getModelName() != null && !overrides.getModelName().isBlank()) {
-            model.setName(overrides.getModelName());
-            LOGGER.info("Env override applied: modelName={}", overrides.getModelName());
-        }
-
-        if (overrides.getModelBaseUrl() != null && !overrides.getModelBaseUrl().isBlank()) {
-            model.setBaseUrl(overrides.getModelBaseUrl());
-            LOGGER.info("Env override applied: modelBaseUrl={}", overrides.getModelBaseUrl());
-        }
-
-        if (overrides.getVersatileUrl() != null && !overrides.getVersatileUrl().isBlank()) {
-            EdpAgentConfig.Versatile versatile = agentConfig.getVersatile();
-            if (versatile != null) {
-                versatile.setUrl(overrides.getVersatileUrl());
-                LOGGER.info("Env override applied: versatileUrl={}", overrides.getVersatileUrl());
-            }
-        }
     }
 
     /**
@@ -385,15 +329,15 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      * Skill 目录从 scenarioHomePath/skills 注入，不再从 edp-agent.yaml skills.directories 解析。
      * 框架配置从 GovernanceConfig.actrule 加载，不再从 framework.options 读取。
      *
-     * @param agentConfig 标准 agent 配置
+     * @param springBootConfig model / versatile 配置（Spring Boot 自动绑定）
      * @param edpConfig EDP 专有配置
      * @param governanceConfig 治理配置（包含 actrule）
      * @param systemPrompt 系统提示词
      * @param skillsDir 场景级 Skill 目录路径
      * @return DeepAgentConfig
      */
-    private DeepAgentConfig buildDeepAgentConfig(EdpAgentConfig agentConfig, EdpConfig edpConfig, GovernanceConfig governanceConfig, String systemPrompt, Path skillsDir) {
-        EdpAgentConfig.Model model = agentConfig.getModel();
+    private DeepAgentConfig buildDeepAgentConfig(EdpaSpringBootConfig springBootConfig, EdpConfig edpConfig, GovernanceConfig governanceConfig, String systemPrompt, Path skillsDir) {
+        EdpaSpringBootConfig.ModelConfig model = springBootConfig != null ? springBootConfig.getModel() : null;
         ActRuleConfig actrule = governanceConfig != null ? governanceConfig.getActrule() : null;
         EdpConfig.LlmSampling sampling = edpConfig != null ? edpConfig.getLlmSampling() : null;
 
@@ -465,7 +409,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
             LOGGER.info("runOpenJiuwenAgentStreaming: direct versatile continuation conversationId={} inputs={}",
                     conversationId, continuationInputs);
             VersatileInterruptRail rail = new VersatileInterruptRail(
-                    edpConfig, agentConfig != null ? agentConfig.getVersatile() : null,
+                    edpConfig, springBootConfig != null ? springBootConfig.getVersatile() : null,
                     new ToolDataChannel(), versatilePassthroughBuffer);
             Map<String, Object> result = rail.invokeWithInputs(continuationInputs, conversationId);
             if (isTerminalVersatileResult(result)) {

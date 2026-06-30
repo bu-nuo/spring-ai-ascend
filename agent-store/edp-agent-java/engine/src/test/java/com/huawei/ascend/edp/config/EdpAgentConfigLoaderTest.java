@@ -30,9 +30,8 @@ class EdpAgentConfigLoaderTest {
         Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
         if (Files.exists(yamlPath)) {
             EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getModel(), "model 不应为 null");
-            assertEquals("PLACEHOLDER_USE_ENV_VAR", config.getModel().getApiKey(),
-                    "apiKey 应为 PLACEHOLDER_USE_ENV_VAR（密钥外部化机制）");
+            // model/versatile 已迁移至 application.yml (EdpaSpringBootConfig)，edp-agent.yaml 中已注释
+            assertNull(config.getModel(), "model 已迁出，应为 null");
         } else {
             System.out.println("SKIP: edp-agent.yaml not found");
         }
@@ -43,9 +42,8 @@ class EdpAgentConfigLoaderTest {
         Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
         if (Files.exists(yamlPath)) {
             EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getVersatile(), "versatile 不应为 null");
-            assertTrue(config.getVersatile().getUrl().startsWith("http://"),
-                    "versatile URL 应以 http:// 开头（不使用 ${...} 占位符）");
+            // versatile 已迁移至 application.yml (EdpaSpringBootConfig)，edp-agent.yaml 中已注释
+            assertNull(config.getVersatile(), "versatile 已迁出，应为 null");
         } else {
             System.out.println("SKIP: edp-agent.yaml not found");
         }

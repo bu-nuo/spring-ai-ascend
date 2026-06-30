@@ -12,24 +12,26 @@ description: EDP 动态规划智能体
   #   maxIterations: 100
   #   enableTaskLoop: true
 
-model:
-  provider: OpenAI
-  name: deepseek-v4-pro
-  baseUrl: https://api.deepseek.com/v1
-  apiKey: PLACEHOLDER_USE_ENV_VAR
-
-versatile:
-  url: http://localhost:30001/v1/0/agent-manager/workflows/{workflow_id}/conversations/{conversation_id}
-  # adapter_a2a_url: http://localhost:8191/a2a  # 未启动 adapter 服务时注释掉，走 REST 直连 mock
-  timeout: 30s
-  url_variables:
-    workflow_id: mock_workflow
-  query_params:
-    type: controller
-    workspace_id: "10"
-  headers:
-    content-type: application/json
-    stream: "true"
+# model 和 versatile 已迁移到 application.yml（Spring Boot 自动绑定）。
+# 环境变量通过 ${ENV_VAR:default} 占位符注入，不再需要 PLACEHOLDER_USE_ENV_VAR 和手动覆盖。
+#model:
+#  provider: OpenAI
+#  name: deepseek-v4-pro
+#  baseUrl: https://api.deepseek.com/v1
+#  apiKey: PLACEHOLDER_USE_ENV_VAR
+#
+#versatile:
+#  url: http://localhost:30001/v1/0/agent-manager/workflows/{workflow_id}/conversations/{conversation_id}
+#  adapter_a2a_url: http://localhost:8191/a2a
+#  timeout: 30s
+#  url_variables:
+#    workflow_id: mock_workflow
+#  query_params:
+#    type: controller
+#    workspace_id: "10"
+#  headers:
+#    content-type: application/json
+#    stream: "true"
 
 #prompt:
   # system 从未被使用，系统提示词由 planrule.yaml + 场景配置动态拼接

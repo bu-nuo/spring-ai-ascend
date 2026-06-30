@@ -6,6 +6,7 @@ import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.channel.ToolDataKey;
 import com.huawei.ascend.edp.channel.ToolDataKeyFactory;
 import com.huawei.ascend.edp.config.EdpConfig;
+import com.huawei.ascend.edp.config.ScriptConstants;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
 import com.openjiuwen.core.singleagent.rail.AgentCallbackContext;
 import com.openjiuwen.core.singleagent.rail.AgentRail;
@@ -69,7 +70,7 @@ public class McpInterruptRail extends AgentRail {
         }
 
         LOGGER.info("McpInterruptRail: intercepting call_mcp for local script execution");
-        ctx.getExtra().put("_skip_tool", Boolean.TRUE);
+        ctx.getExtra().put(ScriptConstants.KEY_SKIP_TOOL, Boolean.TRUE);
         Map<String, Object> result = executeMcpScript(inputs);
         inputs.setToolResult(result);
         inputs.setToolMsg(ToolMessage.builder()

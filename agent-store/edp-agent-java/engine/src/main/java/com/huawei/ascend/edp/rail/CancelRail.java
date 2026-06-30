@@ -1,6 +1,8 @@
 package com.huawei.ascend.edp.rail;
 
 import com.huawei.ascend.edp.config.EdpConfig;
+import com.huawei.ascend.edp.config.ScriptConstants;
+import com.huawei.ascend.edp.config.ToolConstants;
 import com.openjiuwen.core.singleagent.rail.AgentCallbackContext;
 import com.openjiuwen.core.singleagent.rail.AgentRail;
 import com.openjiuwen.core.singleagent.rail.ToolCallInputs;
@@ -67,19 +69,16 @@ public class CancelRail extends AgentRail {
         String toolName = inputs.getToolName();
 
         // 关键判断：只拦截 cancel_task，其他工具直接放行。
-        if ("cancel_task".equals(toolName)) {
-            String cancelMessage = "好的，已为您取消当前操作。如需其他帮助，请随时告诉我。";
-            LOGGER.info("CancelRail: intercepting cancel_task after execution, force finish with message='{}'",
-                    cancelMessage);
+        if (ToolConstants.CANCEL_TASK.equals(toolName)) {
+            LOGGER.info("CancelRail: intercepting cancel_task after execution, force finish (control signal only)");
 
-            // 关键跳转：请求 ReAct 执行链路强制结束，输出取消话术。
-            // 此时 cancel_task 工具函数已执行完毕，tool response 已写入消息序列，
-            // forceFinish 后不会再触发 LLM 调用，避免消息序列不合法导致的 HTTP 400。
-            ctx.requestForceFinish(Map.of("message", cancelMessage));
+            // 话术由 ScriptsRail（B 面）出口发射：ScriptsRail.beforeToolCall(cancel_task,p=50) 已按 reason
+            // 解析话术写入 _edp_response_template，本 Rail only 触发强制结束，payload 为纯控制信号（非话术）。
+            ctx.requestForceFinish(Map.of("cancelled", Boolean.TRUE));
 
             // 标记 checkpoint 清理：下一轮请求开头执行会话重置，对齐 Python
             // EDPAgent 的 checkpoint_to_release 机制，避免取消后上下文残留。
-            ctx.getExtra().put("_edp_checkpoint_release", Boolean.TRUE);
+            ctx.getExtra().put(ScriptConstants.KEY_CHECKPOINT_RELEASE, Boolean.TRUE);
         }
     }
 }

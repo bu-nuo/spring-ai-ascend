@@ -16,6 +16,7 @@ import com.huawei.ascend.edp.config.ScenarioConfig;
 import com.huawei.ascend.edp.config.ScenarioConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioDiscoveryConfig;
 import com.huawei.ascend.edp.config.ScenarioScopeConfig;
+import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
 import com.huawei.ascend.edp.enhancer.EdpaEventStreamAdapter;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
@@ -23,7 +24,6 @@ import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuf
 import com.huawei.ascend.edp.stream.PlanrulePromptBuilder;
 import com.huawei.ascend.edp.stream.ScenarioPromptBuilder;
 import com.huawei.ascend.edp.stream.SkillScriptsCollector;
-import com.huawei.ascend.edp.stream.SysScriptsConfig;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenAgentRuntimeHandler;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
@@ -273,11 +273,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第十一步：注册 Skill 目录（从 scenarioHomePath/skills）。
         registerSkills(skillsDir);
 
-        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails（含 Todo 增强 + 思维链事件）。
-        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir,
-                versatilePassthroughBuffer, deepAgent, edpaTodolist);
-
-        // 第十三步：加载框架级、场景级、Skill 级话术。
+        // 第十二步：加载框架级、场景级、Skill 级话术（D3 修复：话术加载前移到 enhance 之前）。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
         if (edpConfig.getUtterances() != null && edpConfig.getUtterances().getConfigPath() != null) {
             Path scriptsConfigPath = yamlDir.resolve(edpConfig.getUtterances().getConfigPath()).toAbsolutePath().normalize();
@@ -295,6 +291,10 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
             LOGGER.info("No skills directory found; skill scripts collection skipped.");
         }
         LOGGER.info("SysScriptsConfig merged templates: {}", sysScriptsConfig.getTemplates().size());
+
+        // 第十三步：注册 EDPAgent 内置业务工具和业务 Rails（含 Todo 增强 + 思维链事件 + 话术）。
+        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir,
+                versatilePassthroughBuffer, deepAgent, edpaTodolist, sysScriptsConfig);
 
         // 第十四步：强制完成 DeepAgent 初始化。
         deepAgent.ensureInitialized();

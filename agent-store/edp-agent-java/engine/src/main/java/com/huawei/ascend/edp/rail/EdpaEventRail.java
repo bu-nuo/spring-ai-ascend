@@ -1,6 +1,9 @@
 package com.huawei.ascend.edp.rail;
 
 import com.huawei.ascend.edp.config.EdpaEventType;
+import com.huawei.ascend.edp.config.ScriptConstants;
+import com.huawei.ascend.edp.config.ScriptResolver;
+import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.config.ToolConstants;
 import com.huawei.ascend.edp.enhancer.TodoSessionResolver;
 import com.openjiuwen.core.foundation.llm.schema.AssistantMessage;
@@ -117,11 +120,21 @@ public class EdpaEventRail extends DeepAgentRail {
      */
     private final DeepAgent deepAgent;
 
+    /**
+     * 话术配置（A 面：生命周期事件话术 content）。null 表示不填 content（等价现状，保回归安全）。
+     */
+    private final SysScriptsConfig scripts;
+
     /** lazy 创建 TodoTool，路径与 Core TaskPlanningRail / EdpaTodoRail 一致（.todo）。 */
     private volatile TodoTool todoTool;
 
     public EdpaEventRail(DeepAgent deepAgent) {
+        this(deepAgent, null);
+    }
+
+    public EdpaEventRail(DeepAgent deepAgent, SysScriptsConfig scripts) {
         this.deepAgent = deepAgent;
+        this.scripts = scripts;
     }
 
     @Override
@@ -235,7 +248,7 @@ public class EdpaEventRail extends DeepAgentRail {
             return;
         }
         // PLAN_FIRST 真拦截（EdpaTodoRail 未规划 todo 时拦截，工具未执行）→ 不发 tool_start
-        if (Boolean.TRUE.equals(ctx.getExtra().get("_plan_first_block"))) {
+        if (Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_PLAN_FIRST_BLOCK))) {
             LOGGER.info("[EDPA-DIAG] beforeToolCall tool={} PLAN_FIRST_BLOCK (真拦截, 不发 tool_start)", toolName);
             ToolCall tc = inputs.getToolCall();
             if (tc != null && tc.getId() != null) {
@@ -245,10 +258,12 @@ public class EdpaEventRail extends DeepAgentRail {
         }
         // 中断接管型（_skip_tool=true 但非 PLAN_FIRST）或真实执行：工具已执行/将执行 → 发 tool_start
         String sid = sessionId(ctx);
-        String mode = Boolean.TRUE.equals(ctx.getExtra().get("_skip_tool")) ? "interrupt-handled" : "real-exec";
+        String mode = Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_SKIP_TOOL)) ? "interrupt-handled" : "real-exec";
         LOGGER.info("[EDPA-DIAG] beforeToolCall tool={} mode={} -> emit tool_start", toolName, mode);
         toolOpen.put(sid, true);
-        emit(ctx, EdpaEventType.TOOL_START, Map.of("tool", toolName));
+        emit(ctx, EdpaEventType.TOOL_START, Map.of(
+                "tool", toolName,
+                "content", ScriptResolver.toolStart(scripts, toolName)));
     }
 
     /**
@@ -281,6 +296,7 @@ public class EdpaEventRail extends DeepAgentRail {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("tool", toolName);
             payload.put("data", toolResult != null ? toolResult : "");
+            payload.put("content", ScriptResolver.toolEnd(scripts, toolName));
             LOGGER.info("[EDPA-DIAG] afterToolCall tool={} -> emit tool_end", toolName);
             emit(ctx, EdpaEventType.TOOL_END, payload);
             toolOpen.put(sid, false);
@@ -288,7 +304,7 @@ public class EdpaEventRail extends DeepAgentRail {
         }
 
         // ask_user 中断恢复：检测 _skip_tool 标记 + interruptActive 配对
-        if (TOOL_ASK_USER.equals(toolName) && Boolean.TRUE.equals(ctx.getExtra().get("_skip_tool"))) {
+        if (TOOL_ASK_USER.equals(toolName) && Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_SKIP_TOOL))) {
             if (interruptActive.getOrDefault(sid, false)) {
                 LOGGER.info("[EDPA-DIAG] afterToolCall tool={} interrupt resume -> emit interrupt_end", toolName);
                 emit(ctx, EdpaEventType.INTERRUPT_END, Map.of("tool", toolName));
@@ -359,9 +375,18 @@ public class EdpaEventRail extends DeepAgentRail {
             String toolName = "";
             if (ctx.getInputs() instanceof ToolCallInputs inputs) {
                 toolName = inputs.getToolName();
+                // F3-fix：ask_user 话术在 onToolException 解析（异常处理回调必触发；
+                // beforeToolCall(80) 被 AskUserTemplateRail(85) 抛异常中断、不可达）。
+                if (TOOL_ASK_USER.equals(toolName)) {
+                    ScriptResolver.resolveAskUser(scripts, inputs.getToolArgs(), ctx.getExtra());
+                }
             }
+            // content：优先读刚解析的业务话术（_edp_response_template），缺则回落 interrupt_start 配置兜底。
+            Object rt = ctx.getExtra().get(ScriptConstants.KEY_RESPONSE_TEMPLATE);
+            String content = (rt != null && !String.valueOf(rt).isBlank())
+                    ? String.valueOf(rt) : ScriptResolver.interruptStart(scripts);
             LOGGER.info("[EDPA-DIAG] onToolException ToolInterruptException -> emit interrupt_start(tool={})", toolName);
-            emit(ctx, EdpaEventType.INTERRUPT_START, Map.of("tool", toolName));
+            emit(ctx, EdpaEventType.INTERRUPT_START, Map.of("tool", toolName, "content", content));
             return; // 正常中断，不发 error_event，conversation_end 由 afterInvoke 发射
         }
 
@@ -519,11 +544,11 @@ public class EdpaEventRail extends DeepAgentRail {
      * <p>设计文档 v1.1 Rule 12：N 条 todo = N 个 todolist_item 事件，每个携带单条 todo（非 tasks 数组）。</p>
      */
     private void emitTodolistPerItem(AgentCallbackContext ctx, List<TodoItem> todos) {
-        emit(ctx, EdpaEventType.TODOLIST_START, Map.of());
+        emit(ctx, EdpaEventType.TODOLIST_START, Map.of("content", ScriptResolver.todolistStart(scripts)));
         for (TodoItem todo : todos) {
             emit(ctx, EdpaEventType.TODOLIST_ITEM, toTaskMap(todo));
         }
-        emit(ctx, EdpaEventType.TODOLIST_END, Map.of());
+        emit(ctx, EdpaEventType.TODOLIST_END, Map.of("content", ScriptResolver.todolistEnd(scripts)));
     }
 
     /**
@@ -538,7 +563,9 @@ public class EdpaEventRail extends DeepAgentRail {
             if (isInProgress(current) && !isInProgress(prev)) {
                 LOGGER.info("[EDPA-DIAG] emitTodoStarts todo {} {}->IN_PROGRESS -> emit todo_start",
                         todo.getId(), prev);
-                emit(ctx, EdpaEventType.TODO_START, Map.of("id", todo.getId(), "content", safe(todo.getContent())));
+                emit(ctx, EdpaEventType.TODO_START, Map.of(
+                        "id", todo.getId(),
+                        "content", ScriptResolver.todoStart(scripts, safe(todo.getContent()))));
             }
         }
     }
@@ -561,7 +588,7 @@ public class EdpaEventRail extends DeepAgentRail {
                         todo.getId());
                 emit(ctx, EdpaEventType.TODO_END, Map.of(
                         "id", todo.getId(),
-                        "content", safe(todo.getContent()),
+                        "content", ScriptResolver.todoEnd(scripts, safe(todo.getContent())),
                         "status", "completed"));
             }
 
@@ -571,7 +598,7 @@ public class EdpaEventRail extends DeepAgentRail {
                         todo.getId());
                 emit(ctx, EdpaEventType.TODO_END, Map.of(
                         "id", todo.getId(),
-                        "content", safe(todo.getContent()),
+                        "content", ScriptResolver.todoEnd(scripts, safe(todo.getContent())),
                         "status", "cancelled"));
             }
         }

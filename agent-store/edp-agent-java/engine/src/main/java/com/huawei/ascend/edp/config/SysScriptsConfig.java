@@ -1,4 +1,4 @@
-package com.huawei.ascend.edp.stream;
+package com.huawei.ascend.edp.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -63,6 +63,27 @@ public class SysScriptsConfig {
      */
     public String getTemplate(String key) {
         return templates.get(key);
+    }
+
+    /**
+     * 是否存在该话术 key（话术消费面合规判定 / 兜底用）。
+     *
+     * @param key 模板 key
+     * @return true 表示配置内存在该 key
+     */
+    public boolean has(String key) {
+        return templates.containsKey(key);
+    }
+
+    /**
+     * 取模板，缺失返回默认值（兜底场景用）。
+     *
+     * @param key 模板 key
+     * @param def 缺失时的默认值
+     * @return 模板内容或 def
+     */
+    public String getOrDefault(String key, String def) {
+        return templates.getOrDefault(key, def);
     }
 
     /**

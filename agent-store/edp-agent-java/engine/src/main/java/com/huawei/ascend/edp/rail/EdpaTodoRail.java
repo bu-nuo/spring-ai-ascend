@@ -1,5 +1,6 @@
 package com.huawei.ascend.edp.rail;
 
+import com.huawei.ascend.edp.config.ScriptConstants;
 import com.huawei.ascend.edp.config.ToolConstants;
 import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.config.EdpaTodolist.DynamicPath;
@@ -241,7 +242,7 @@ public class EdpaTodoRail extends DeepAgentRail {
     private void enforcePlanBeforeBusinessTool(AgentCallbackContext ctx, ToolCallInputs inputs, String toolName) {
         if (hasPlannedTodos(ctx)) {
             // 清理上一轮 PLAN_FIRST 残留标记（ctx.extra 在同会话工具调用间共享，避免误判后续放行工具为拦截）。
-            ctx.getExtra().remove("_plan_first_block");
+            ctx.getExtra().remove(ScriptConstants.KEY_PLAN_FIRST_BLOCK);
             LOGGER.info("[EDPA-DIAG] PLAN_GUARD tool={} PASS (会话已规划 todo, 放行业务工具)", toolName);
             return; // 已规划，放行
         }
@@ -249,10 +250,10 @@ public class EdpaTodoRail extends DeepAgentRail {
         String synthetic = "{\"error\":\"PLAN_FIRST\",\"message\":\"BLOCKED: 业务工具 "
                 + toolName + " 被拦截。你必须先调用 todo_create 按 catalog_id 创建任务列表，规划完整执行步骤后，"
                 + "才能调用业务工具。请立即调用 todo_create，不要直接回答用户。\"}";
-        ctx.getExtra().put("_skip_tool", Boolean.TRUE);
+        ctx.getExtra().put(ScriptConstants.KEY_SKIP_TOOL, Boolean.TRUE);
         // 额外打 PLAN_FIRST 拦截标记：区分「真拦截(未规划,不发 tool_start/tool_end)」
         // 与「中断接管型工具(Versatile/McpInterruptRail 设 _skip_tool 但已执行真实调用,应发 tool_start/tool_end)」。
-        ctx.getExtra().put("_plan_first_block", Boolean.TRUE);
+        ctx.getExtra().put(ScriptConstants.KEY_PLAN_FIRST_BLOCK, Boolean.TRUE);
         inputs.setToolResult(synthetic);
         ToolCall tc = inputs.getToolCall();
         String callId = tc != null ? tc.getId() : "";

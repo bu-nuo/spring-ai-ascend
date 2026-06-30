@@ -1,4 +1,4 @@
-package com.huawei.ascend.edp.stream;
+package com.huawei.ascend.edp.config;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,8 +12,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * SysScriptsConfig 系统话术配置管理器单元测试。
- *
- * 验证阶段 2 架构包结构生产化中的 stream 包。
  */
 class SysScriptsConfigTest {
 
@@ -34,6 +32,18 @@ class SysScriptsConfigTest {
     @Test
     void testGetTemplate_NotExist() {
         assertNull(config.getTemplate("nonexistent"), "不存在的 key 应返回 null");
+    }
+
+    @Test
+    void testHas() {
+        assertTrue(config.has("thinking"), "thinking key 应存在");
+        assertFalse(config.has("nonexistent"), "不存在的 key 应返回 false");
+    }
+
+    @Test
+    void testGetOrDefault() {
+        assertEquals("正在处理您的请求...", config.getOrDefault("thinking", "fallback"), "存在的 key 应返回模板值");
+        assertEquals("fallback", config.getOrDefault("nonexistent", "fallback"), "不存在的 key 应返回默认值");
     }
 
     @Test

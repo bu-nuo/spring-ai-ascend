@@ -19,7 +19,7 @@ class EdpAgentConfigLoaderTest {
         if (Files.exists(yamlPath)) {
             EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
             assertNotNull(config, "加载结果不应为 null");
-            assertEquals("edp-agent", config.getName(), "名称应为 edp-agent");
+            assertNull(config.getName(), "元数据已注释，name 应为 null");
         } else {
             System.out.println("SKIP: edp-agent.yaml not found at " + yamlPath);
         }

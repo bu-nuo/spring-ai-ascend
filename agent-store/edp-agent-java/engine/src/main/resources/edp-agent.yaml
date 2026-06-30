@@ -1,6 +1,7 @@
-schema: ascend-agent/v1
-name: edp-agent
-description: EDP 动态规划智能体
+# 元数据字段仅作文档用途，无生产代码引用
+#schema: ascend-agent/v1
+#name: edp-agent
+#description: EDP 动态规划智能体
 
 #framework:
   #type: openjiuwen

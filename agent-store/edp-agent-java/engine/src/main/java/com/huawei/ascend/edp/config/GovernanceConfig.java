@@ -127,7 +127,11 @@ public class GovernanceConfig {
             this.actrule.setMaxRetryCount(scenarioActrule.getMaxRetryCount());
         }
         if (scenarioActrule.getAllowedTools() != null) {
-            this.actrule.setAllowedTools(scenarioActrule.getAllowedTools());
+            // 叠加合并：框架工具 + 场景扩展工具，去重但保持顺序
+            java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>(
+                    this.actrule.getAllowedTools() != null ? this.actrule.getAllowedTools() : java.util.List.of());
+            merged.addAll(scenarioActrule.getAllowedTools());
+            this.actrule.setAllowedTools(new java.util.ArrayList<>(merged));
         }
         if (scenarioActrule.getEnableTaskLoop() != null) {
             this.actrule.setEnableTaskLoop(scenarioActrule.getEnableTaskLoop());

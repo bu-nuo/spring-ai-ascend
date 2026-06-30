@@ -275,9 +275,10 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第十一步：注册 Skill 目录（从 scenarioHomePath/skills）。
         registerSkills(skillsDir);
 
-        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails（含 Todo 增强 + 思维链事件）。
-        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir,
-                versatilePassthroughBuffer, deepAgent, edpaTodolist);
+        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails（按 actrule.allowed_tools 配置驱动，含 Todo 增强 + 思维链事件）。
+        EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig,
+                governanceConfig != null ? governanceConfig.getActrule() : null,
+                new ToolDataChannel(), skillsDir, versatilePassthroughBuffer, deepAgent, edpaTodolist);
 
         // 第十三步：加载框架级、场景级、Skill 级话术。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();

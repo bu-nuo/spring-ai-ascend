@@ -1,6 +1,7 @@
 package com.huawei.ascend.edp.enhancer;
 
 import com.huawei.ascend.edp.channel.ToolDataChannel;
+import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.EdpaTodolist;
@@ -87,18 +88,31 @@ public class EdpaAgentEnhancer {
 
     public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir) {
-        enhance(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
+        enhance(agent, edpConfig, agentConfig, null, toolDataChannel, skillsDir, null);
     }
 
     /**
      * 增强 DeepAgent，并注入与 {@link EdpaRuntimeHandler} 共享的 Versatile 透传缓冲。
-     *
-     * <p>Rail 在 call_versatile 期间写入的 USER 节点需与 handler 层流式迭代器共用同一缓冲，
-     * 才能在 DeepAgent 帧之间按序刷出完整 Versatile JSON。</p>
      */
     public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
-        enhance(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, passthroughBuffer, null, null);
+        enhance(agent, edpConfig, agentConfig, null, toolDataChannel, skillsDir, passthroughBuffer, null, null);
+    }
+
+    /**
+     * 增强 DeepAgent（配置驱动工具注册）。
+     *
+     * @param agent DeepAgent 实例
+     * @param edpConfig EDP 专有配置
+     * @param agentConfig 标准 agent 配置（含 versatile）
+     * @param actrule 行为治理配置（含 allowed_tools，驱动工具注册）
+     * @param toolDataChannel 工具数据通道
+     * @param skillsDir 场景级 Skill 目录
+     * @param passthroughBuffer Versatile 透传缓冲
+     */
+    public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
+            ActRuleConfig actrule, ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
+        enhance(agent, edpConfig, agentConfig, actrule, toolDataChannel, skillsDir, passthroughBuffer, null, null);
     }
 
     /**
@@ -107,6 +121,7 @@ public class EdpaAgentEnhancer {
      * @param agent 待增强的 DeepAgent
      * @param edpConfig EDP 配置
      * @param agentConfig Agent 配置
+     * @param actrule 行为治理配置（含 allowed_tools，驱动工具注册）
      * @param toolDataChannel 工具数据通道
      * @param skillsDir 技能目录
      * @param passthroughBuffer Versatile 透传缓冲
@@ -114,7 +129,7 @@ public class EdpaAgentEnhancer {
      * @param edpaTodolist Todo 数据层（catalog entries + dynamic paths）
      */
     public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
-            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
+            ActRuleConfig actrule, ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
             DeepAgent deepAgent, EdpaTodolist edpaTodolist) {
         // 关键判断：DeepAgent 是注册工具和 Rail 的目标对象，缺失时直接失败，避免静默启动。
         if (agent == null) {
@@ -126,14 +141,13 @@ public class EdpaAgentEnhancer {
                 edpConfig.getLimits() != null && edpConfig.getLimits().getTasks() != null ? edpConfig.getLimits().getTasks().size() : "null");
 
         // 先注册工具，确保模型工具列表和后续 Rail 拦截逻辑具备目标工具。
-        registerBusinessTools(agent, edpConfig);
+        registerBusinessTools(agent, edpConfig, actrule);
 
         // 再注册 Rails，确保模型调用、工具调用、记忆、日志等回调进入执行链路。
         registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, passthroughBuffer,
                 deepAgent != null ? deepAgent : agent, edpaTodolist);
 
-        LOGGER.info("EdpaAgentEnhancer.enhance() completed, registered {} business tools and {} business rails",
-                countRegisteredTools(), edpConfig != null ? countRegisteredRails(edpConfig) : 0);
+        LOGGER.info("EdpaAgentEnhancer.enhance() completed");
     }
 
     /**
@@ -144,8 +158,8 @@ public class EdpaAgentEnhancer {
      * @param edpConfig EDP 专有配置，用于动态生成 lite_todo_write 的 step_id 枚举
      * @return 工具列表，包含 lite_todo_write、call_mcp、call_versatile、ask_user、cancel_task
      */
-    public static List<Tool> buildBusinessTools(EdpConfig edpConfig) {
-        return EdpaBusinessTools.build(edpConfig);
+    public static List<Tool> buildBusinessTools(EdpConfig edpConfig, ActRuleConfig actrule) {
+        return EdpaBusinessTools.build(edpConfig, actrule);
     }
 
     /**
@@ -228,10 +242,9 @@ public class EdpaAgentEnhancer {
      * @param agent DeepAgent 实例
      * @param edpConfig EDP 专有配置
      */
-    private static void registerBusinessTools(DeepAgent agent, EdpConfig edpConfig) {
-        List<Tool> tools = buildBusinessTools(edpConfig);
+    private static void registerBusinessTools(DeepAgent agent, EdpConfig edpConfig, ActRuleConfig actrule) {
+        List<Tool> tools = buildBusinessTools(edpConfig, actrule);
         for (Tool tool : tools) {
-            // registerHarnessTool 是当前 OpenJiuwen Harness 暴露的工具注册入口。
             agent.registerHarnessTool(tool);
             LOGGER.info("Registered business tool: {}", tool.getCard().getName());
         }
@@ -259,24 +272,5 @@ public class EdpaAgentEnhancer {
             LOGGER.info("Registered business rail: {} (priority={})",
                     rail.getClass().getSimpleName(), rail.getPriority());
         }
-    }
-
-    /**
-     * 返回当前 spike 阶段固定注册的业务工具数量。
-     *
-     * @return 工具数量
-     */
-    private static int countRegisteredTools() {
-        return 5;
-    }
-
-    /**
-     * 返回当前 spike 阶段固定注册的业务 Rail 数量。
-     *
-     * @param edpConfig EDP 专有配置，当前仅保留接口一致性
-     * @return Rail 数量
-     */
-    private static int countRegisteredRails(EdpConfig edpConfig) {
-        return 7;
     }
 }

@@ -39,6 +39,11 @@ public class ActRuleConfig {
     /** 是否启用任务循环（从 framework.options.enableTaskLoop 迁移）。 */
     private Boolean enableTaskLoop;
 
+    /** Skill 加载模式（从 skills.mode 迁移）。
+     * 可选值：all（列出所有 Skill）、auto_list（动态搜索 Skill）、none（关闭 Skill 系统）。
+     */
+    private String skillMode;
+
     public Integer getMaxSubtasks() { return maxSubtasks; }
     public void setMaxSubtasks(Integer maxSubtasks) { this.maxSubtasks = maxSubtasks; }
 
@@ -62,4 +67,7 @@ public class ActRuleConfig {
 
     public Boolean getEnableTaskLoop() { return enableTaskLoop; }
     public void setEnableTaskLoop(Boolean enableTaskLoop) { this.enableTaskLoop = enableTaskLoop; }
+
+    public String getSkillMode() { return skillMode; }
+    public void setSkillMode(String skillMode) { this.skillMode = skillMode; }
 }

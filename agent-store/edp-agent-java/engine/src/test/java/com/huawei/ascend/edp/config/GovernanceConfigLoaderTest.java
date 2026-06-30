@@ -49,6 +49,7 @@ class GovernanceConfigLoaderTest {
         assertTrue(config.getActrule().getReplanEnabled(), "replanEnabled字段应正确解析");
         assertNotNull(config.getActrule().getAllowedTools(), "allowedTools列表应存在");
         assertTrue(config.getActrule().getAllowedTools().contains("bash"), "allowedTools应包含bash工具");
+        assertEquals("all", config.getActrule().getSkillMode(), "skillMode应从actrule.yaml解析为all");
         
         // 验证scriptconfig配置
         assertNotNull(config.getScriptconfig(), "scriptconfig配置应存在");
@@ -107,6 +108,7 @@ class GovernanceConfigLoaderTest {
         // 未覆盖的字段应继承框架级默认值
         assertEquals(100, mergedConfig.getActrule().getMaxSteps(), "未覆盖的maxSteps应继承框架级默认值");
         assertTrue(mergedConfig.getActrule().getReplanEnabled(), "未覆盖的replanEnabled应继承框架级默认值");
+        assertEquals("auto_list", mergedConfig.getActrule().getSkillMode(), "场景级skillMode应覆盖框架级all为auto_list");
         
         // 4. scriptconfig.generalScripts: 替代式覆盖
         assertEquals("正在为您查询理财产品...", mergedConfig.getScriptconfig().getGeneralScripts().getToolStart(), "场景级toolStart应完全覆盖");
@@ -145,7 +147,8 @@ class GovernanceConfigLoaderTest {
         String actruleYaml = "actrule:\n" +
                 "  max_subtasks: 25\n" +
                 "  replan_enabled: false\n" +
-                "  max_replan_count: 5\n";
+                "  max_replan_count: 5\n" +
+                "  skill_mode: auto_list\n";
         Files.writeString(testDir.resolve("actrule.yaml"), actruleYaml);
         
         // 执行加载
@@ -156,6 +159,7 @@ class GovernanceConfigLoaderTest {
         assertEquals(25, config.getActrule().getMaxSubtasks(), "max_subtasks应映射到maxSubtasks");
         assertFalse(config.getActrule().getReplanEnabled(), "replan_enabled应映射到replanEnabled");
         assertEquals(5, config.getActrule().getMaxReplanCount(), "max_replan_count应映射到maxReplanCount");
+        assertEquals("auto_list", config.getActrule().getSkillMode(), "skill_mode应映射到skillMode");
     }
 
     @Test
@@ -196,6 +200,7 @@ class GovernanceConfigLoaderTest {
                 "  max_steps: 100\n" +
                 "  retry_enabled: true\n" +
                 "  max_retry_count: 3\n" +
+                "  skill_mode: all\n" +
                 "  allowed_tools:\n" +
                 "    - bash\n" +
                 "    - skill_tool\n";
@@ -225,7 +230,8 @@ class GovernanceConfigLoaderTest {
         
         // actrule.yaml（场景级覆盖）
         String actruleYaml = "actrule:\n" +
-                "  max_subtasks: 30\n";  // 只覆盖这一个字段，其他字段继承框架级
+                "  max_subtasks: 30\n" +  // 只覆盖maxSubtasks，其他字段继承框架级
+                "  skill_mode: auto_list\n";  // 覆盖skillMode
         Files.writeString(scenarioDir.resolve("actrule.yaml"), actruleYaml);
         
         // scriptconfig.yaml（场景级覆盖）

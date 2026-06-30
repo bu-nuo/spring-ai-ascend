@@ -36,10 +36,10 @@ prompt:
 
 # Skill 目录不再在 YAML 中硬编码（方案 B）。
 # 业务 Skill 从 scenarioHome/skills/ 动态加载，由 Spring Boot @Value 注入路径。
-# skills.directories 保留为空列表，仅声明 mode。
-skills:
-  directories: []
-  mode: all
+# skills.mode 已迁移到 governance/actrule.yaml 的 skill_mode 字段。
+# skills:
+#   directories: []  # 已废弃，直接删除
+#   mode: all        # → actrule.skill_mode
 
 tools:
   - bash

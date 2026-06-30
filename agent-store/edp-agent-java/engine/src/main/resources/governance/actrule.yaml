@@ -21,6 +21,12 @@ actrule:
   # 是否启用任务循环（从 framework.options.enableTaskLoop 迁移）
   enable_task_loop: true
 
+  # Skill 加载模式（从 skills.mode 迁移）
+  # - all: 列出所有 Skill，Agent 直接判断匹配
+  # - auto_list: 动态搜索 Skill，Agent 先调用 list_tool 查询
+  # - none: 关闭 Skill 系统
+  skill_mode: all
+
   # 是否允许失败重试
   retry_enabled: true
 

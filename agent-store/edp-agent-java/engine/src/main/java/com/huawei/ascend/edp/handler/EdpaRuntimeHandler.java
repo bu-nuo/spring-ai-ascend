@@ -422,7 +422,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 ? List.of(skillsDir.toString())
                 : List.of();
 
-        String skillMode = agentConfig.getSkills() != null ? agentConfig.getSkills().getMode() : "all";
+        // 从 actrule 读取 skillMode（从 skills.mode 迁移）
+        String skillMode = actrule != null && actrule.getSkillMode() != null ? actrule.getSkillMode() : "all";
 
         return DeepAgentConfig.builder()
                 .systemPrompt(systemPrompt != null ? systemPrompt : "")

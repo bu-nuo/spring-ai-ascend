@@ -65,35 +65,6 @@ class EdpAgentConfigLoaderTest {
     }
 
     @Test
-    void testLoad_EmptySkillDirectories() {
-        Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
-        if (Files.exists(yamlPath)) {
-            EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getSkills(), "skills 不应为 null");
-            assertEquals(0, config.getSkills().getDirectories().size(),
-                    "skills.directories 应为空列表（方案 B：从 scenarioHome 动态加载）");
-        } else {
-            System.out.println("SKIP: edp-agent.yaml not found");
-        }
-    }
-
-    @Test
-    void testLoad_FrameworkOptions() {
-        Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
-        if (Files.exists(yamlPath)) {
-            EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getFramework(), "framework 不应为 null");
-            assertNotNull(config.getFramework().getOptions(), "options 不应为 null");
-            assertTrue(config.getFramework().getOptions().getMaxIterations() > 0,
-                    "maxIterations 应大于 0");
-            assertTrue(config.getFramework().getOptions().isEnableTaskLoop(),
-                    "enableTaskLoop 应为 true");
-        } else {
-            System.out.println("SKIP: edp-agent.yaml not found");
-        }
-    }
-
-    @Test
     void testLoad_NonExistentFile() {
         // EdpAgentConfigLoader 对不存在文件返回默认对象（降级设计）
         EdpAgentConfig config = EdpAgentConfigLoader.load(Path.of("/nonexistent/edp-agent.yaml"));

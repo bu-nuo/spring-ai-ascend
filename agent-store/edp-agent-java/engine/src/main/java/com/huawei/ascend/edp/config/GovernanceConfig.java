@@ -132,6 +132,9 @@ public class GovernanceConfig {
         if (scenarioActrule.getEnableTaskLoop() != null) {
             this.actrule.setEnableTaskLoop(scenarioActrule.getEnableTaskLoop());
         }
+        if (scenarioActrule.getSkillMode() != null) {
+            this.actrule.setSkillMode(scenarioActrule.getSkillMode());
+        }
     }
 
     /**

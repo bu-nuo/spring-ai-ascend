@@ -49,7 +49,7 @@ public class ExecutionLimitRail extends AgentRail {
     public ExecutionLimitRail(EdpConfig edpConfig) {
         this.edpConfig = edpConfig;
         // 与迭代限制保持同一优先级，在工具真正执行前完成次数判断。
-        setPriority(40);
+        setPriority(70);
     }
 
     /**

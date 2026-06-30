@@ -46,7 +46,7 @@ public class LogRail extends AgentRail {
     public LogRail(EdpConfig edpConfig) {
         this.edpConfig = edpConfig;
         // 日志 Rail 使用较低优先级，尽量在其他业务 Rail 完成处理后记录最终上下文。
-        setPriority(1000);
+        setPriority(10);
     }
 
     /**

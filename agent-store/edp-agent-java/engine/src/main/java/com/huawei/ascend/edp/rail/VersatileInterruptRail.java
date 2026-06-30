@@ -101,7 +101,7 @@ public class VersatileInterruptRail extends AgentRail {
                 .version(HttpClient.Version.HTTP_1_1)
                 .build();
         // VA 与 MCP、ask_user 同属工具调用增强类 Rail，使用同一优先级。
-        setPriority(50);
+        setPriority(85);
     }
 
     /**

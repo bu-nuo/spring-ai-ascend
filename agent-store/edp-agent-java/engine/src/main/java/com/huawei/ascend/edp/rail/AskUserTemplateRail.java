@@ -43,7 +43,7 @@ public class AskUserTemplateRail extends AgentRail {
      */
     public AskUserTemplateRail(EdpConfig edpConfig) {
         this.edpConfig = edpConfig;
-        setPriority(50);
+        setPriority(85);
     }
 
     /**

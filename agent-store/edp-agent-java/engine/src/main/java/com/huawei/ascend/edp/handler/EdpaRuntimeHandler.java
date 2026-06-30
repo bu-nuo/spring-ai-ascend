@@ -9,6 +9,7 @@ import com.huawei.ascend.edp.config.EdpAgentConfigLoader;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.EdpConfigLoader;
 import com.huawei.ascend.edp.config.EdpConfigValidator;
+import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.config.GovernanceConfig;
 import com.huawei.ascend.edp.config.GovernanceConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioConfig;
@@ -16,6 +17,7 @@ import com.huawei.ascend.edp.config.ScenarioConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioDiscoveryConfig;
 import com.huawei.ascend.edp.config.ScenarioScopeConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
+import com.huawei.ascend.edp.enhancer.EdpaEventStreamAdapter;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuffer;
 import com.huawei.ascend.edp.stream.PlanrulePromptBuilder;
@@ -26,6 +28,7 @@ import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenAgentRuntimeHandler;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
 import com.huawei.ascend.runtime.engine.spi.AgentRuntimeHandler;
+import com.huawei.ascend.runtime.engine.spi.StreamAdapter;
 import com.openjiuwen.core.session.interaction.InteractiveInput;
 import com.openjiuwen.core.session.stream.StreamMode;
 import com.openjiuwen.core.singleagent.rail.AgentRail;
@@ -105,6 +108,9 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      * EDPAgent 专有配置，来自 edp-config.yaml。
      */
     private EdpConfig edpConfig;
+
+    /** Todo 数据层（catalog entries + dynamic paths），从 scenario-config.yaml 加载。 */
+    private EdpaTodolist edpaTodolist;
 
     /**
      * Versatile adapter 返回的 USER 透传节点缓冲，与 {@link VersatileInterruptRail} 共享。
@@ -201,6 +207,16 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                     edpConfig.setTodolistSteps(scenarioConfig.getTodolistSteps());
                 }
 
+                // 加载 Todo 数据层（catalog entries + dynamic paths）
+                try {
+                    edpaTodolist = new EdpaTodolist(scenarioConfigPath);
+                    LOGGER.info("EdpaTodolist loaded: legacyMode={}, entries={}, dynamicPaths={}",
+                            edpaTodolist.isLegacyMode(), edpaTodolist.getEntries().size(),
+                            edpaTodolist.getDynamicPaths().size());
+                } catch (Exception e) {
+                    LOGGER.warn("Failed to load EdpaTodolist from {}: {}", scenarioConfigPath, e.getMessage());
+                }
+
                 // 用场景级 scope 覆盖框架级
                 if (scenarioConfig.getScope() != null) {
                     ScenarioScopeConfig scenarioScope = scenarioConfig.getScope();
@@ -257,9 +273,9 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第十一步：注册 Skill 目录（从 scenarioHomePath/skills）。
         registerSkills(skillsDir);
 
-        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails。
+        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails（含 Todo 增强 + 思维链事件）。
         EdpaAgentEnhancer.enhance(deepAgent, edpConfig, agentConfig, new ToolDataChannel(), skillsDir,
-                versatilePassthroughBuffer);
+                versatilePassthroughBuffer, deepAgent, edpaTodolist);
 
         // 第十三步：加载框架级、场景级、Skill 级话术。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
@@ -409,6 +425,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 .systemPrompt(systemPrompt != null ? systemPrompt : "")
                 .maxIterations(options != null && options.getMaxIterations() > 0 ? options.getMaxIterations() : 15)
                 .enableTaskLoop(options != null && options.isEnableTaskLoop())
+                .enableTaskPlanning(true)
                 .skillDirectories(skillDirs)
                 .skillMode(skillMode)
                 .model(modelMap)
@@ -680,6 +697,15 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      */
     public Path getScenarioHomePath() {
         return scenarioHomePath;
+    }
+
+    /**
+     * 覆写流适配器：将 EdpaEventRail 发射的 custom OutputSchema 转为 A2A SSE 帧，
+     * 抑制重复的 llm_output（已由事件流发射）。
+     */
+    @Override
+    public StreamAdapter resultAdapter() {
+        return new EdpaEventStreamAdapter();
     }
 
     private static final class VersatilePassthroughIterator implements Iterator<Object> {

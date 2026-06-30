@@ -23,11 +23,6 @@ import java.util.function.Function;
 public final class EdpaBusinessTools {
 
     /**
-     * 轻量 Todo 写入工具名，对齐 Python EDPAgent 的 lite_todo_write。
-     */
-    public static final String TOOL_LITE_TODO_WRITE = "lite_todo_write";
-
-    /**
      * MCP 沙箱调用工具名。
      */
     public static final String TOOL_CALL_MCP = "call_mcp";
@@ -53,12 +48,11 @@ public final class EdpaBusinessTools {
     /**
      * 构造 EDPAgent 内置业务工具列表。
      *
-     * @param edpConfig EDP 专有配置，用于动态生成 lite_todo_write 的 step_id 枚举
-     * @return 工具列表，包含 lite_todo_write、call_mcp、call_versatile、ask_user、cancel_task
+     * @param edpConfig EDP 专有配置
+     * @return 工具列表，包含 call_mcp、call_versatile、ask_user、cancel_task
      */
     public static List<Tool> build(EdpConfig edpConfig) {
         List<Tool> tools = new ArrayList<>();
-        tools.add(LiteTodoWriteTool.build(edpConfig));
         tools.add(CallMcpTool.build());
         tools.add(CallVersatileTool.build());
         tools.add(EnhancedAskUserTool.build());

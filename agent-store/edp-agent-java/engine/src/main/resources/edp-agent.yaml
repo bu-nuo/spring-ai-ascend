@@ -17,7 +17,7 @@ model:
 
 versatile:
   url: http://localhost:30001/v1/0/agent-manager/workflows/{workflow_id}/conversations/{conversation_id}
-  adapter_a2a_url: http://localhost:8191/a2a
+  # adapter_a2a_url: http://localhost:8191/a2a  # 未启动 adapter 服务时注释掉，走 REST 直连 mock
   timeout: 30s
   url_variables:
     workflow_id: mock_workflow
@@ -44,5 +44,8 @@ tools:
   - call_versatile
   - call_mcp
   - ask_user
-  - lite_todo_write
+  - todo_create
+  - todo_modify
+  - todo_list
+  - todo_get
   - cancel_task

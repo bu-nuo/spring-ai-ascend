@@ -3,8 +3,10 @@ package com.huawei.ascend.edp.enhancer;
 import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.config.EdpAgentConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
+import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.rail.CancelRail;
-import com.huawei.ascend.edp.rail.LiteTodoRail;
+import com.huawei.ascend.edp.rail.EdpaTodoRail;
+import com.huawei.ascend.edp.rail.EdpaEventRail;
 import com.huawei.ascend.edp.rail.ExecutionLimitRail;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuffer;
@@ -40,11 +42,6 @@ import java.util.List;
  * </ul>
  */
 public class EdpaAgentEnhancer {
-
-    /**
-     * 轻量 Todo 写入工具名，对齐 Python EDPAgent 的 lite_todo_write。
-     */
-    public static final String TOOL_LITE_TODO_WRITE = EdpaBusinessTools.TOOL_LITE_TODO_WRITE;
 
     /**
      * MCP 沙箱调用工具名。
@@ -101,6 +98,24 @@ public class EdpaAgentEnhancer {
      */
     public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
+        enhance(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, passthroughBuffer, null, null);
+    }
+
+    /**
+     * 增强 DeepAgent（完整参数版，含 Todo 数据层和 DeepAgent 引用）。
+     *
+     * @param agent 待增强的 DeepAgent
+     * @param edpConfig EDP 配置
+     * @param agentConfig Agent 配置
+     * @param toolDataChannel 工具数据通道
+     * @param skillsDir 技能目录
+     * @param passthroughBuffer Versatile 透传缓冲
+     * @param deepAgent DeepAgent 引用（供 Rail 访问 workspace 等）
+     * @param edpaTodolist Todo 数据层（catalog entries + dynamic paths）
+     */
+    public static void enhance(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
+            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
+            DeepAgent deepAgent, EdpaTodolist edpaTodolist) {
         // 关键判断：DeepAgent 是注册工具和 Rail 的目标对象，缺失时直接失败，避免静默启动。
         if (agent == null) {
             throw new IllegalArgumentException("DeepAgent instance must not be null");
@@ -114,7 +129,8 @@ public class EdpaAgentEnhancer {
         registerBusinessTools(agent, edpConfig);
 
         // 再注册 Rails，确保模型调用、工具调用、记忆、日志等回调进入执行链路。
-        registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, passthroughBuffer);
+        registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, passthroughBuffer,
+                deepAgent != null ? deepAgent : agent, edpaTodolist);
 
         LOGGER.info("EdpaAgentEnhancer.enhance() completed, registered {} business tools and {} business rails",
                 countRegisteredTools(), edpConfig != null ? countRegisteredRails(edpConfig) : 0);
@@ -157,9 +173,27 @@ public class EdpaAgentEnhancer {
         return buildBusinessRails(edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
     }
 
-    /** @see #enhance(DeepAgent, EdpConfig, EdpAgentConfig, ToolDataChannel, Path, VersatilePassthroughBuffer) */
+    /** @see #enhance(DeepAgent, EdpConfig, EdpAgentConfig, ToolDataChannel, Path, VersatilePassthroughBuffer, DeepAgent, EdpaTodolist) */
     public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
+        return buildBusinessRails(edpConfig, agentConfig, toolDataChannel, skillsDir, passthroughBuffer, null, null);
+    }
+
+    /**
+     * 构造 EDPAgent 业务 Rails（完整参数版）。
+     *
+     * @param edpConfig EDP 配置
+     * @param agentConfig Agent 配置
+     * @param toolDataChannel 工具数据通道
+     * @param skillsDir 技能目录
+     * @param passthroughBuffer Versatile 透传缓冲
+     * @param deepAgent DeepAgent 引用（供 EdpaTodoRail/EdpaEventRail 访问 workspace）
+     * @param edpaTodolist Todo 数据层（catalog entries + dynamic paths）
+     * @return Rail 列表
+     */
+    public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpAgentConfig agentConfig,
+            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
+            DeepAgent deepAgent, EdpaTodolist edpaTodolist) {
         ToolDataChannel sharedChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();
         VersatilePassthroughBuffer sharedPassthroughBuffer = passthroughBuffer != null
                 ? passthroughBuffer : new VersatilePassthroughBuffer();
@@ -167,10 +201,11 @@ public class EdpaAgentEnhancer {
 
         // 取消类 Rail 优先注册，使取消信号尽早生效。
         rails.add(new CancelRail(edpConfig));
-        // Todo Rail 负责轻量 Todo 状态相关回调。
-        rails.add(new LiteTodoRail(edpConfig));
+        // Todo 增强 Rail（catalog_id 补全 + 依赖闭环 + PLAN_FIRST 守卫），仅当 todolist 非空时注册。
+        if (deepAgent != null && edpaTodolist != null) {
+            rails.add(new EdpaTodoRail(deepAgent, edpaTodolist));
+        }
         // 执行限制 Rail 负责阻断失控循环。
-        // 迭代次数限制由 DeepAgent 原生 ReActAgentConfig.maxIterations 提供，无需自定义 Rail。
         rails.add(new ExecutionLimitRail(edpConfig));
         // MCP / VA / ask_user Rail 负责工具调用前后的业务中断和参数增强。
         rails.add(new McpInterruptRail(edpConfig, sharedChannel, skillsDir));
@@ -178,8 +213,11 @@ public class EdpaAgentEnhancer {
                 sharedChannel, sharedPassthroughBuffer));
         rails.add(new AskUserTemplateRail(edpConfig));
         // Log Rail 负责观测日志。
-        // 记忆功能由 DeepAgent 原生 harness.rails.MemoryRail 提供，通过 DeepAgentConfig 配置启用。
         rails.add(new LogRail(edpConfig));
+        // 思维链事件发射 Rail（todo/tool/think/final_answer 事件流），需要 deepAgent。
+        if (deepAgent != null) {
+            rails.add(new EdpaEventRail(deepAgent));
+        }
 
         return rails;
     }
@@ -207,13 +245,14 @@ public class EdpaAgentEnhancer {
      */
     private static void registerBusinessRails(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
             ToolDataChannel toolDataChannel, Path skillsDir) {
-        registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer());
+        registerBusinessRails(agent, edpConfig, agentConfig, toolDataChannel, skillsDir, new VersatilePassthroughBuffer(), null, null);
     }
 
     private static void registerBusinessRails(DeepAgent agent, EdpConfig edpConfig, EdpAgentConfig agentConfig,
-            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer) {
+            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
+            DeepAgent deepAgent, EdpaTodolist edpaTodolist) {
         List<AgentRail> rails = buildBusinessRails(edpConfig, agentConfig, toolDataChannel, skillsDir,
-                passthroughBuffer);
+                passthroughBuffer, deepAgent, edpaTodolist);
         for (AgentRail rail : rails) {
             // Rail 注册在底层 BaseAgent 上，ReAct 执行循环会按事件和优先级触发回调。
             agent.getAgent().registerRail(rail);

@@ -50,16 +50,8 @@ public class ScenarioPromptBuilder {
             }
         }
 
-        // Todolist 步骤
-        List<EdpConfig.TodolistStep> todolistSteps = scenario.getTodolistSteps();
-        if (todolistSteps != null && !todolistSteps.isEmpty()) {
-            sb.append("\n**任务规划**：\n");
-            for (EdpConfig.TodolistStep step : todolistSteps) {
-                sb.append("- step_id=").append(step.getStepId())
-                  .append("：").append(step.getContent())
-                  .append("（skill=").append(step.getSkill()).append("）\n");
-            }
-        }
+        // Todo 步骤已由 EdpaTodoRail.init() 通过 addPromptBuilderSection 动态注入，
+        // 此处不再拼接，避免 LLM 看到重复的任务清单。
 
         // Skill 路由
         List<ScenarioSkillRouting> routing = scenario.getSkillRouting();

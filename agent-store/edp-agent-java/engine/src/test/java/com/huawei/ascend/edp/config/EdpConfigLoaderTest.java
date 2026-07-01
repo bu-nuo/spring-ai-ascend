@@ -25,14 +25,13 @@ class EdpConfigLoaderTest {
     }
 
     @Test
-    void testLoad_TodolistPlaceholder() {
+    void testLoad_TodolistStepsNullable() {
         Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
         if (Files.exists(configPath)) {
             EdpConfig config = EdpConfigLoader.load(configPath);
-            assertNotNull(config.getTodolistSteps(), "todolistSteps 不应为 null");
-            assertTrue(config.getTodolistSteps().size() > 0, "应有占位步骤");
-            assertEquals("_placeholder_", config.getTodolistSteps().get(0).getSkill(),
-                    "占位步骤的 skill 应为 _placeholder_（真实步骤由场景文件提供）");
+            // todolist_steps 已迁移至 scenario-config.yaml，框架级不再提供占位
+            assertNull(config.getTodolistSteps(),
+                    "框架级 todolistSteps 应为 null（真实步骤由 scenario-config.yaml 提供）");
         } else {
             System.out.println("SKIP: edp-config.yaml not found");
         }

@@ -77,15 +77,15 @@ class Phase3ConfigTest {
         }
     }
 
-    // ── edp-config.yaml todolist 占位 ──
+    // ── edp-config.yaml todolist 已迁移 ──
 
     @Test
-    void testTodolistPlaceholder() throws IOException {
+    void testTodolistNotInFrameworkConfig() throws IOException {
         Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
         if (Files.exists(configPath)) {
             String content = Files.readString(configPath);
-            assertTrue(content.contains("_placeholder_"),
-                    "todolist_steps 应包含 _placeholder_ 占位（真实步骤由场景文件提供）");
+            assertFalse(content.contains("todolist_steps"),
+                    "todolist_steps 不应在框架级配置中（已迁移至 scenario-config.yaml）");
         } else {
             System.out.println("SKIP: edp-config.yaml not found");
         }

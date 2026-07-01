@@ -4,12 +4,6 @@ scope:
   allowed: ""
   out_of_scope_message: "当前请求暂不在可处理范围内。"
 
-# todolist 占位（真实步骤由场景文件 scenario-config.yaml 提供）
-todolist_steps:
-  - step_id: 1
-    content: "占位步骤（请配置 scenarioHome 或检查场景文件）"
-    skill: "_placeholder_"
-
 limits:
   tasks:
     call_versatile: 100

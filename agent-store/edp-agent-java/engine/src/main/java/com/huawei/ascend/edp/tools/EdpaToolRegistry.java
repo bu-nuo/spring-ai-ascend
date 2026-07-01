@@ -18,14 +18,13 @@ import java.util.function.Function;
  *
  * <p>注意：</p>
  * <ul>
- *     <li>bash 和 skill_tool 是 DeepAgent 原生工具，不在此注册表中。</li>
- *     <li>lite_todo_write 是唯一需要 {@link EdpConfig} 参数的工具。</li>
+ *     <li>bash、skill_tool 是 DeepAgent 原生工具，不在此注册表中。</li>
+ *     <li>todo_create / todo_modify / todo_list / todo_get 由 Core 框架 TaskPlanningRail 自动注册。</li>
  * </ul>
  */
 public final class EdpaToolRegistry {
 
     private static final Map<String, Function<EdpConfig, Tool>> BUILTIN_TOOLS = Map.of(
-            EdpaBusinessTools.TOOL_LITE_TODO_WRITE, LiteTodoWriteTool::build,
             EdpaBusinessTools.TOOL_CALL_MCP, cfg -> CallMcpTool.build(),
             EdpaBusinessTools.TOOL_CALL_VERSATILE, cfg -> CallVersatileTool.build(),
             EdpaBusinessTools.TOOL_ENHANCED_ASK_USER, cfg -> EnhancedAskUserTool.build(),
@@ -38,8 +37,8 @@ public final class EdpaToolRegistry {
     /**
      * 根据工具名称构建工具实例。
      *
-     * @param name 工具名称（如 "call_mcp"、"lite_todo_write"）
-     * @param edpConfig EDP 专有配置（仅 lite_todo_write 依赖）
+     * @param name 工具名称（如 "call_mcp"）
+     * @param edpConfig EDP 专有配置
      * @return 工具实例，未知名称为 null
      */
     public static Tool build(String name, EdpConfig edpConfig) {

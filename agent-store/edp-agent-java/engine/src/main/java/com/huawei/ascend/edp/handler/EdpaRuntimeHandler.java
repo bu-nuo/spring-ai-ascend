@@ -6,14 +6,12 @@ import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
-import com.huawei.ascend.edp.config.EdpConfigLoader;
 import com.huawei.ascend.edp.config.EdpConfigValidator;
 import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.config.GovernanceConfig;
 import com.huawei.ascend.edp.config.GovernanceConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioConfig;
 import com.huawei.ascend.edp.config.ScenarioConfigLoader;
-import com.huawei.ascend.edp.config.ScenarioDiscoveryConfig;
 import com.huawei.ascend.edp.config.ScenarioScopeConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
 import com.huawei.ascend.edp.enhancer.EdpaEventStreamAdapter;
@@ -22,7 +20,6 @@ import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuf
 import com.huawei.ascend.edp.stream.PlanrulePromptBuilder;
 import com.huawei.ascend.edp.stream.ScenarioPromptBuilder;
 import com.huawei.ascend.edp.stream.SkillScriptsCollector;
-import com.huawei.ascend.edp.stream.SysScriptsConfig;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenAgentRuntimeHandler;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
@@ -159,26 +156,17 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第一步：存储 Spring Boot 配置（替代 edp-agent.yaml）。
         this.springBootConfig = springBootConfig;
 
-        // 第二步：加载 EDP 专有配置。
-        edpConfig = EdpConfigLoader.load(Path.of(configPath));
+        // 第二步：edp-config.yaml 已删除，所有配置均迁移至 governance/ 下。
+        edpConfig = new EdpConfig();
         Path yamlDir = Path.of(configPath).toAbsolutePath().normalize().getParent();
 
         // 第四步：解析 scenarioHome 路径。
-        // scenarioHome 优先由 Spring Boot @Value 注入，指向活动场景目录（如 scenarios/wealth-demo）。
-        // 回退逻辑：如果 scenarioHome 未注入，从 yamlDir + scenario_discovery.base_path 解析（兼容旧模式）。
+        // scenarioHome 由 Spring Boot @Value 注入；未注入时跳过 scenario 加载，使用 governance 默认配置。
         if (scenarioHome != null && !scenarioHome.isBlank()) {
             scenarioHomePath = Path.of(scenarioHome).toAbsolutePath().normalize();
             LOGGER.info("scenarioHome resolved from Spring @Value: {} -> {}", scenarioHome, scenarioHomePath);
         } else {
-            // 回退：从 yamlDir 解析场景根目录（旧模式，resources/scenarios）
-            ScenarioDiscoveryConfig discovery = edpConfig.getScenarioDiscovery();
-            if (discovery != null) {
-                scenarioHomePath = yamlDir.resolve(discovery.getBasePath())
-                        .resolve(discovery.getActiveScenario()).toAbsolutePath().normalize();
-                LOGGER.info("scenarioHome resolved from yamlDir fallback: {}", scenarioHomePath);
-            } else {
-                LOGGER.warn("No scenarioHome and no scenario_discovery configured; scenario loading skipped.");
-            }
+            LOGGER.info("No scenarioHome configured; scenario loading skipped, using governance defaults.");
         }
 
         // 第五步：场景发现与加载（从 scenarioHomePath）。
@@ -265,26 +253,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 governanceConfig != null ? governanceConfig.getActrule() : null,
                 new ToolDataChannel(), skillsDir, versatilePassthroughBuffer, deepAgent, edpaTodolist);
 
-        // 第十三步：加载框架级、场景级、Skill 级话术。
-        SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
-        if (edpConfig.getUtterances() != null && edpConfig.getUtterances().getConfigPath() != null) {
-            Path scriptsConfigPath = yamlDir.resolve(edpConfig.getUtterances().getConfigPath()).toAbsolutePath().normalize();
-            sysScriptsConfig.load(scriptsConfigPath.toString());
-        }
-        if (scenarioHomePath != null) {
-            Path scenarioScriptsConfigPath = scenarioHomePath.resolve("ScriptsConfig.yaml").toAbsolutePath().normalize();
-            sysScriptsConfig.load(scenarioScriptsConfigPath.toString());
-        }
-        if (skillsDir != null && Files.exists(skillsDir)) {
-            Map<String, String> skillScripts = SkillScriptsCollector.collectSkillScripts(skillsDir);
-            sysScriptsConfig.mergeSkillScripts(skillScripts);
-            LOGGER.info("Skill scripts collected: {} entries from {}", skillScripts.size(), skillsDir);
-        } else {
-            LOGGER.info("No skills directory found; skill scripts collection skipped.");
-        }
-        LOGGER.info("SysScriptsConfig merged templates: {}", sysScriptsConfig.getTemplates().size());
-
-        // 第十四步：强制完成 DeepAgent 初始化。
+        // 第十三步：强制完成 DeepAgent 初始化。
         deepAgent.ensureInitialized();
 
         LOGGER.info("EdpaRuntimeHandler init completed, agentId={}, deepAgent initialized={}, scenarioHome={}",

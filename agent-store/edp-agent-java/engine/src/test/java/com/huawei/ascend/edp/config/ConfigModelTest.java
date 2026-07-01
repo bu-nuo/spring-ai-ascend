@@ -146,17 +146,6 @@ class ConfigModelTest {
         assertEquals(List.of(1), step.getDependsOn());
     }
 
-    // ── EdpConfig.QueryPattern ──
-
-    @Test
-    void testQueryPattern_Fields() {
-        EdpConfig.QueryPattern pattern = new EdpConfig.QueryPattern();
-        pattern.setKeywords(List.of("推荐", "理财"));
-        pattern.setScripts(List.of("正在搜索理财产品..."));
-        assertEquals(2, pattern.getKeywords().size());
-        assertEquals(1, pattern.getScripts().size());
-    }
-
     // ── EdpAgentConfig.EnvOverrides ──
 
     @Test

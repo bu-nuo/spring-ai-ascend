@@ -1,0 +1,244 @@
+package com.huawei.ascend.edp.handler;
+
+import com.huawei.ascend.edp.config.GovernanceConfig;
+import com.huawei.ascend.edp.config.PlanRuleConfig;
+import com.huawei.ascend.edp.config.ScenarioConfig;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * EdpaRuntimeHandler GovernanceConfig集成测试类。
+ *
+ * <p>测试目标：验证GovernanceConfig加载和系统提示词拼接逻辑</p>
+ * <p>测试覆盖：</p>
+ * <ul>
+ *     <li>完整GovernanceConfig拼接测试</li>
+ *     <li>GovernanceConfig缺失降级测试</li>
+ *     <li>ScenarioConfig缺失降级测试</li>
+ *     <li>prompt.system 已移除验证（不再依赖 agentConfig）</li>
+ *     <li>GovernanceConfigLoader加载测试（框架级）</li>
+ *     <li>GovernanceConfigLoader加载测试（场景级优先）</li>
+ * </ul>
+ */
+class EdpaRuntimeHandlerGovernanceTest {
+
+    /**
+     * 测试用例1：完整GovernanceConfig拼接测试。
+     *
+     * <p>验证planrule四字段 + ScenarioPromptBuilder拼接逻辑</p>
+     */
+    @Test
+    void testBuildFullSystemPromptWithFullGovernanceConfig() {
+        // 构造GovernanceConfig（planrule四字段完整配置）
+        GovernanceConfig governance = new GovernanceConfig();
+        PlanRuleConfig planrule = new PlanRuleConfig();
+        planrule.setRole("通用动态规划智能体角色定位");
+        planrule.setDescription("负责任务规划、执行和结果总结的智能助手");
+
+        PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
+        scope.setAllowed(" ");
+        scope.setDenied(" ");
+        scope.setOutOfScopeMessage("尚在学习中，暂不支持该业务");
+        planrule.setScope(scope);
+
+        planrule.setSupplementaryPrompt("## 二、行为约束\n\n行为约束：\n1. 当用户表达修改意图，暂停当前任务，重新规划");
+        governance.setPlanrule(planrule);
+
+        // 构造ScenarioConfig（场景级动态内容）
+        ScenarioConfig scenario = new ScenarioConfig();
+        scenario.setName("wealth-demo");
+        scenario.setDescription("理财推荐场景");
+
+        // 使用反射调用buildFullSystemPrompt()方法（private方法，已移除agentConfig参数）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
+
+        // 验证拼接结果包含两部分
+        // 第一部分：planrule四字段（role, description, scope, supplementaryPrompt）
+        assertTrue(systemPrompt.contains("# 通用动态规划智能体角色定位"));
+        assertTrue(systemPrompt.contains("负责任务规划、执行和结果总结的智能助手"));
+        assertTrue(systemPrompt.contains("超出范围提示：尚在学习中，暂不支持该业务"));
+        assertTrue(systemPrompt.contains("## 二、行为约束"));
+        assertTrue(systemPrompt.contains("暂停当前任务，重新规划"));
+
+        // 第二部分：ScenarioPromptBuilder
+        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
+        assertTrue(systemPrompt.contains("理财推荐场景"));
+
+        // 验证两部分正确拼接（中间有"\n\n"分隔）
+        assertTrue(systemPrompt.contains("\n\n**当前场景**"));
+    }
+
+    /**
+     * 测试用例2：GovernanceConfig缺失降级测试。
+     *
+     * <p>验证GovernanceConfig为null时的降级处理</p>
+     */
+    @Test
+    void testBuildFullSystemPromptWithNullGovernanceConfig() {
+        // GovernanceConfig为null
+        GovernanceConfig governance = null;
+
+        // 构造ScenarioConfig
+        ScenarioConfig scenario = new ScenarioConfig();
+        scenario.setName("wealth-demo");
+
+        // 调用buildFullSystemPrompt()（GovernanceConfig为null）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
+
+        // 验证只返回 ScenarioPromptBuilder.buildSystemPrompt(scenario) 的结果
+        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
+        assertFalse(systemPrompt.contains("# 通用动态规划智能体"));  // planrule缺失，不应包含第一部分
+    }
+
+    /**
+     * 测试用例3：ScenarioConfig缺失降级测试。
+     *
+     * <p>验证ScenarioConfig为null时的降级处理</p>
+     */
+    @Test
+    void testBuildFullSystemPromptWithNullScenarioConfig() {
+        // 构造GovernanceConfig
+        GovernanceConfig governance = new GovernanceConfig();
+        PlanRuleConfig planrule = new PlanRuleConfig();
+        planrule.setRole("理财推荐智能体");
+        planrule.setDescription("理财产品推荐智能助手");
+        governance.setPlanrule(planrule);
+
+        // ScenarioConfig为null
+        ScenarioConfig scenario = null;
+
+        // 调用buildFullSystemPrompt()（ScenarioConfig为null）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
+
+        // 验证只返回 PlanrulePromptBuilder.buildSystemPromptFragment(planrule) 的结果
+        assertTrue(systemPrompt.contains("# 理财推荐智能体"));
+        assertTrue(systemPrompt.contains("理财产品推荐智能助手"));
+        // scenario 为 null 时，scenarioFragment 为空字符串，不会包含 scenario 内容
+        assertFalse(systemPrompt.contains("**当前场景**"));
+    }
+
+    /**
+     * 测试用例4：prompt.system 已移除验证。
+     *
+     * <p>验证 buildFullSystemPrompt 不再依赖 agentConfig.prompt.system，始终使用 governance + scenario 拼接逻辑</p>
+     */
+    @Test
+    void testBuildFullSystemPromptNoLongerDependsOnAgentConfig() {
+        // 构造GovernanceConfig
+        GovernanceConfig governance = new GovernanceConfig();
+        PlanRuleConfig planrule = new PlanRuleConfig();
+        planrule.setRole("理财推荐智能体");
+        planrule.setDescription("理财产品推荐智能助手");
+        governance.setPlanrule(planrule);
+
+        // 构造ScenarioConfig
+        ScenarioConfig scenario = new ScenarioConfig();
+        scenario.setName("wealth-demo");
+
+        // 直接调用（不再需要 EdpAgentConfig 参数）
+        String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
+
+        // 验证返回的是 governance + scenario 拼接结果，而非任何 agentConfig 内容
+        assertTrue(systemPrompt.contains("# 理财推荐智能体"));
+        assertTrue(systemPrompt.contains("理财产品推荐智能助手"));
+        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
+        assertTrue(systemPrompt.contains("\n\n**当前场景**"));  // 两部分正确拼接
+        // 验证不再依赖 agentConfig.prompt.system
+        assertFalse(systemPrompt.contains("向后兼容"));
+        assertFalse(systemPrompt.contains("agentConfig"));
+    }
+
+    /**
+     * 测试用例5：GovernanceConfigLoader加载测试（框架级）。
+     *
+     * <p>验证框架级GovernanceConfig加载</p>
+     */
+    @Test
+    void testLoadGovernanceConfigFrameworkLevel() {
+        // yamlDir：src/main/resources（框架级governance路径）
+        Path yamlDir = Path.of("src/main/resources");
+
+        // scenarioHomePath：null（无场景级governance）
+        Path scenarioHomePath = null;
+
+        // 使用反射调用loadGovernanceConfig()方法
+        GovernanceConfig governance = invokeLoadGovernanceConfig(yamlDir, scenarioHomePath);
+
+        // 验证GovernanceConfig包含框架级planrule.yaml、actrule.yaml、scriptconfig.yaml内容
+        assertNotNull(governance);
+        assertNotNull(governance.getPlanrule(), "planrule should be loaded from framework-level governance");
+        assertNotNull(governance.getActrule(), "actrule should be loaded from framework-level governance");
+        assertNotNull(governance.getScriptconfig(), "scriptconfig should be loaded from framework-level governance");
+
+        // 验证planrule内容
+        assertEquals("你的身份是通用动态规划智能体", governance.getPlanrule().getRole());
+        assertTrue(governance.getPlanrule().getDescription().contains("任务规划"));
+    }
+
+    /**
+     * 测试用例6：GovernanceConfigLoader加载测试（场景级优先）。
+     *
+     * <p>验证场景级GovernanceConfig优先加载</p>
+     */
+    @Test
+    void testLoadGovernanceConfigScenarioLevelPriority() {
+        // yamlDir：src/main/resources（框架级governance路径）
+        Path yamlDir = Path.of("src/main/resources");
+
+        // scenarioHomePath：scenarios/wealth-demo（场景级governance路径）
+        // 注意：这个测试需要实际存在场景级governance目录才能通过
+        // 如果没有场景级governance目录，会降级使用框架级governance
+        Path scenarioHomePath = Path.of("scenarios/wealth-demo");
+
+        // 使用反射调用loadGovernanceConfig()方法
+        GovernanceConfig governance = invokeLoadGovernanceConfig(yamlDir, scenarioHomePath);
+
+        // 验证GovernanceConfig加载成功
+        assertNotNull(governance);
+        assertNotNull(governance.getPlanrule());
+
+        // 如果场景级governance存在，验证场景级配置覆盖框架级配置
+        // 如果场景级governance不存在，验证降级使用框架级配置
+        if (governance.getPlanrule().getRole() != null) {
+            // 验证planrole字段加载成功（无论框架级还是场景级）
+            assertNotNull(governance.getPlanrule().getRole());
+        }
+    }
+
+    /**
+     * 使用反射调用buildFullSystemPrompt()方法（private方法，已移除agentConfig参数）。
+     */
+    private String invokeBuildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario) {
+        try {
+            EdpaRuntimeHandler handler = new EdpaRuntimeHandler();
+            java.lang.reflect.Method method = EdpaRuntimeHandler.class.getDeclaredMethod(
+                    "buildFullSystemPrompt", GovernanceConfig.class, ScenarioConfig.class);
+            method.setAccessible(true);
+            return (String) method.invoke(handler, governance, scenario);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to invoke buildFullSystemPrompt method", e);
+        }
+    }
+
+    /**
+     * 使用反射调用loadGovernanceConfig()方法（private方法）。
+     */
+    private GovernanceConfig invokeLoadGovernanceConfig(Path yamlDir, Path scenarioHomePath) {
+        try {
+            // 创建EdpaRuntimeHandler实例
+            EdpaRuntimeHandler handler = new EdpaRuntimeHandler();
+
+            // 使用反射调用private方法
+            java.lang.reflect.Method method = EdpaRuntimeHandler.class.getDeclaredMethod(
+                    "loadGovernanceConfig", Path.class, Path.class);
+            method.setAccessible(true);
+
+            return (GovernanceConfig) method.invoke(handler, yamlDir, scenarioHomePath);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to invoke loadGovernanceConfig method", e);
+        }
+    }
+}

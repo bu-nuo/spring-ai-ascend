@@ -213,6 +213,14 @@ public class EdpaEventRail extends DeepAgentRail {
         // reasoning 仅为标点占位（如 "." / "。"）时视为无数据，回退到 content（LLM 实际输出）。
         String thinkContent = (reasoning != null && reasoning.strip().length() > 1) ? reasoning : content;
 
+        // planning_start（无配对，开始规划）：必须在 think_start 之前发射（EdpaEventType 枚举生命周期
+        // 顺序：request_start → planning_start → think_start → … → todolist_start）。仅当本轮模型决定
+        // 调用 todo_create（主动规划）时发一次（per-request 去重）。寒暄/超范围/直接作答的轮次
+        // tool_calls 不含 todo_create，不发——故「你好」不会出现 planning_start。
+        if (containsTodoCreate(msg)) {
+            maybeEmitPlanningStart(ctx, sid);
+        }
+
         // ① 发 think 对（每轮 LLM 一对，严格配对，Rule 2）
         thinkOpen.put(sid, true);
         emit(ctx, EdpaEventType.THINK_START, Map.of());
@@ -247,8 +255,11 @@ public class EdpaEventRail extends DeepAgentRail {
         if (!isBusinessTool(toolName)) {
             return;
         }
-        // PLAN_FIRST 真拦截（EdpaTodoRail 未规划 todo 时拦截，工具未执行）→ 不发 tool_start
+        String sid = sessionId(ctx);
+        // PLAN_FIRST 真拦截（EdpaTodoRail 未规划 todo 时拦截，工具未执行）→ 不发 tool_start；
+        // 但视为「进入规划阶段」（强制规划），发 planning_start（per-request 一次）。
         if (Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_PLAN_FIRST_BLOCK))) {
+            maybeEmitPlanningStart(ctx, sid);
             LOGGER.info("[EDPA-DIAG] beforeToolCall tool={} PLAN_FIRST_BLOCK (真拦截, 不发 tool_start)", toolName);
             ToolCall tc = inputs.getToolCall();
             if (tc != null && tc.getId() != null) {
@@ -257,7 +268,6 @@ public class EdpaEventRail extends DeepAgentRail {
             return;
         }
         // 中断接管型（_skip_tool=true 但非 PLAN_FIRST）或真实执行：工具已执行/将执行 → 发 tool_start
-        String sid = sessionId(ctx);
         String mode = Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_SKIP_TOOL)) ? "interrupt-handled" : "real-exec";
         LOGGER.info("[EDPA-DIAG] beforeToolCall tool={} mode={} -> emit tool_start", toolName, mode);
         toolOpen.put(sid, true);
@@ -681,6 +691,38 @@ public class EdpaEventRail extends DeepAgentRail {
 
     private static boolean isBusinessTool(String toolName) {
         return TOOL_CALL_MCP.equals(toolName) || TOOL_CALL_VERSATILE.equals(toolName);
+    }
+
+    /**
+     * planning_start 一次性发射（per-request 去重）。
+     *
+     * <p>UC-C05 + EdpaEventType 枚举：planning_start 语义=「Agent 进入规划阶段」，无配对，
+     * 在 think_start 之前发射。触发点：① afterModelCall 检测到本轮模型决定调用 todo_create
+     * （主动规划）；② beforeToolCall 检测到 PLAN_FIRST 拦截（强制规划）。寒暄/超范围/直接作答
+     * 的请求不发。per-request 去重保证同一请求内只发一次。</p>
+     */
+    private void maybeEmitPlanningStart(AgentCallbackContext ctx, String sid) {
+        if (Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_PLANNING_START_SENT))) {
+            return;
+        }
+        ctx.getExtra().put(ScriptConstants.KEY_PLANNING_START_SENT, Boolean.TRUE);
+        String content = ScriptResolver.resolve(scripts, EdpaEventType.PLANNING_START.wireName(), Map.of());
+        LOGGER.info("[EDPA-DIAG] sid={} -> emit planning_start (planning entry, before think_start)", sid);
+        emit(ctx, EdpaEventType.PLANNING_START, Map.of("content", content));
+    }
+
+    /** 当前模型响应的 tool_calls 是否包含 todo_create（即 LLM 主动进入规划）。 */
+    private static boolean containsTodoCreate(AssistantMessage msg) {
+        List<ToolCall> tcs = msg.getToolCalls();
+        if (tcs == null || tcs.isEmpty()) {
+            return false;
+        }
+        for (ToolCall tc : tcs) {
+            if (tc != null && ToolConstants.TODO_CREATE.equals(tc.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isInProgress(TodoStatus status) {

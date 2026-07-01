@@ -26,6 +26,8 @@ public final class ScriptConstants {
     public static final String KEY_SKIP_TOOL = "_skip_tool";
     public static final String KEY_PLAN_FIRST_BLOCK = "_plan_first_block";
     public static final String KEY_CHECKPOINT_RELEASE = "_edp_checkpoint_release";
+    /** planning_start per-request 去重标记（解耦后仅真正进入规划时发一次）。 */
+    public static final String KEY_PLANNING_START_SENT = "_edp_planning_start_sent";
 
     // ── 话术配置 key（生命周期类，与 EdpaEventType.wireName 一致）──
     // 用 EdpaEventType 枚举引用，不在此重复定义，避免双源

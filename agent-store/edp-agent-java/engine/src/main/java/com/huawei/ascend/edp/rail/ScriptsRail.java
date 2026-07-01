@@ -30,7 +30,7 @@ import java.util.Map;
  *
  * <p>六职责：</p>
  * <ol>
- *     <li>{@link #beforeInvoke}：首轮开场（{@code request_start} + {@code planning_start}）。</li>
+ *     <li>{@link #beforeInvoke}：首轮开场（仅 {@code request_start}，无条件）。</li>
  *     <li>{@link #beforeToolCall}：ask_user 解析 {@code response_template_*} / cancel_task 写 reason → {@code _edp_response_template}。</li>
  *     <li>{@link #afterToolCall}：call_versatile/call_mcp 结果话术兜底。</li>
  *     <li>{@link #afterInvoke}：出口发射 {@code _edp_response_template}（对齐 Python 流末出口）。</li>
@@ -71,10 +71,12 @@ public class ScriptsRail extends DeepAgentRail {
         if (scripts == null || !isFirstTurn(ctx)) {
             return;
         }
+        // 仅发 request_start（首轮开场，无条件，UC-C05 A2：非法/空请求仍送 request_start）。
+        // planning_start 解耦到 beforeToolCall：仅在 Agent 真正进入规划（todo_create / PLAN_FIRST
+        // 拦截）时发射，避免「你好」等无规划请求误发 planning_start（UC-C05：planning_start
+        // 语义=进入规划阶段，无配对事件）。
         emitScript(ctx, EdpaEventType.REQUEST_START.wireName(),
                 ScriptResolver.resolve(scripts, EdpaEventType.REQUEST_START.wireName(), Map.of()));
-        emitScript(ctx, EdpaEventType.PLANNING_START.wireName(),
-                ScriptResolver.resolve(scripts, EdpaEventType.PLANNING_START.wireName(), Map.of()));
     }
 
     // ═══════════════════════════════════════════════════
@@ -149,7 +151,6 @@ public class ScriptsRail extends DeepAgentRail {
     // ═══════════════════════════════════════════════════
     // ③ 业务结果话术兜底（call_versatile / call_mcp 结果）
     // ═══════════════════════════════════════════════════
-
     @Override
     public void afterToolCall(AgentCallbackContext ctx) {
         if (scripts == null || !(ctx.getInputs() instanceof ToolCallInputs inputs)) {

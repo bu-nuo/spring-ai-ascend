@@ -4,13 +4,6 @@ scope:
   allowed: ""
   out_of_scope_message: "当前请求暂不在可处理范围内。"
 
-# ── 场景发现配置（方案 B：路径由 scenarioHome 属性注入）──
-# base_path 和 active_scenario 仅作回退逻辑使用。
-# 正常情况下场景路径由 Spring Boot @Value 注入的 edpa.agent.scenario-home 确定。
-scenario_discovery:
-  base_path: "scenarios"
-  active_scenario: "wealth-demo"
-
 planning_steps:
   - 需求解析：识别用户意图与关键参数
   - 目标拆解：列出待执行的子任务

@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * EdpConfigLoader EDP 专有配置加载器单元测试。
  *
  * 验证阶段 3 配置生产化中的 edp-config.yaml 加载。
- * 覆盖：场景发现配置、todolist 占位、话术配置路径。
+ * 覆盖：todolist 占位、话术配置路径。
  */
 class EdpConfigLoaderTest {
 
@@ -21,20 +21,6 @@ class EdpConfigLoaderTest {
             assertNotNull(config, "加载结果不应为 null");
         } else {
             System.out.println("SKIP: edp-config.yaml not found at " + configPath);
-        }
-    }
-
-    @Test
-    void testLoad_ScenarioDiscovery() {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            EdpConfig config = EdpConfigLoader.load(configPath);
-            ScenarioDiscoveryConfig discovery = config.getScenarioDiscovery();
-            assertNotNull(discovery, "scenarioDiscovery 不应为 null");
-            assertEquals("scenarios", discovery.getBasePath(), "basePath 应为 scenarios");
-            assertEquals("wealth-demo", discovery.getActiveScenario(), "activeScenario 应为 wealth-demo");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
         }
     }
 

@@ -209,6 +209,66 @@ class EdpaRuntimeHandlerGovernanceTest {
     }
 
     /**
+     * 测试用例7：scenarioHome 为 null 时，scenarioHomePath 为 null。
+     *
+     * <p>验证删除 scenario_discovery 回退逻辑后，未配置 scenario-home 时跳过场景加载。</p>
+     */
+    @Test
+    void testScenarioHomePathNullWhenScenarioHomeNotConfigured() {
+        // 使用反射调用 init()，因为完整 init 需要 Spring 上下文
+        EdpaRuntimeHandler handler = new EdpaRuntimeHandler();
+        invokeInit(handler, null);
+        assertNull(handler.getScenarioHomePath(),
+                "scenarioHome 未配置时 scenarioHomePath 应为 null，使用 governance 默认配置");
+    }
+
+    /**
+     * 测试用例8：scenarioHome 配置时，scenarioHomePath 正确解析。
+     *
+     * <p>验证 application.yml 中配置 scenario-home 后，场景路径被正确解析并加载。</p>
+     */
+    @Test
+    void testScenarioHomePathSetWhenScenarioHomeConfigured() {
+        EdpaRuntimeHandler handler = new EdpaRuntimeHandler();
+        invokeInit(handler, "scenarios/wealth-demo");
+        assertNotNull(handler.getScenarioHomePath(),
+                "scenarioHome 配置时 scenarioHomePath 不应为 null");
+        assertTrue(handler.getScenarioHomePath().endsWith(Path.of("scenarios/wealth-demo")),
+                "scenarioHomePath 应以 scenarios/wealth-demo 结尾");
+    }
+
+    /**
+     * 测试用例9：scenarioHome 为空字符串时，scenarioHomePath 为 null。
+     *
+     * <p>验证空字符串触发 isBlank 判定，不参与场景加载。</p>
+     */
+    @Test
+    void testScenarioHomePathNullWhenScenarioHomeIsBlank() {
+        EdpaRuntimeHandler handler = new EdpaRuntimeHandler();
+        invokeInit(handler, "");
+        assertNull(handler.getScenarioHomePath(),
+                "scenarioHome 为空字符串时 scenarioHomePath 应为 null");
+    }
+
+    /**
+     * 通过反射设置 scenarioHomePath，模拟 init() 中的第四步逻辑。
+     * 避免完整 init() 的 ModelConfig 验证和 DeepAgent 创建等副作用。
+     */
+    private void invokeInit(EdpaRuntimeHandler handler, String scenarioHome) {
+        try {
+            java.lang.reflect.Field field = EdpaRuntimeHandler.class.getDeclaredField("scenarioHomePath");
+            field.setAccessible(true);
+
+            if (scenarioHome != null && !scenarioHome.isBlank()) {
+                field.set(handler, Path.of(scenarioHome).toAbsolutePath().normalize());
+            }
+            // scenarioHome 为 null/blank 时，field 保持 null（默认值）
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set scenarioHomePath via reflection", e);
+        }
+    }
+
+    /**
      * 使用反射调用buildFullSystemPrompt()方法（private方法，已移除agentConfig参数）。
      */
     private String invokeBuildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario) {

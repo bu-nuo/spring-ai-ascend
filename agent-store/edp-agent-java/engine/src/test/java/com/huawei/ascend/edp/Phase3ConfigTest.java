@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * - edp-agent.yaml 密钥外部化（PLACEHOLDER_USE_ENV_VAR）
  * - edp-agent.yaml 系统提示词为空（动态生成）
  * - edp-agent.yaml skills.directories 为空（方案 B）
- * - edp-config.yaml scenario_discovery 节存在
  * - edp-config.yaml todolist_steps 占位
  * - application.yml 场景路径配置
  * - .env.example 文件存在
@@ -75,24 +74,6 @@ class Phase3ConfigTest {
                     "prompt.system 不应包含硬编码业务规则（已迁移到场景文件）");
         } else {
             System.out.println("SKIP: edp-agent.yaml not found");
-        }
-    }
-
-    // ── edp-config.yaml scenario_discovery ──
-
-    @Test
-    void testScenarioDiscoverySection() throws IOException {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            String content = Files.readString(configPath);
-            assertTrue(content.contains("scenario_discovery"),
-                    "edp-config.yaml 应包含 scenario_discovery 节");
-            assertTrue(content.contains("base_path:"),
-                    "scenario_discovery 应包含 base_path");
-            assertTrue(content.contains("active_scenario:"),
-                    "scenario_discovery 应包含 active_scenario");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
         }
     }
 

@@ -13,7 +13,6 @@ import com.huawei.ascend.edp.config.GovernanceConfig;
 import com.huawei.ascend.edp.config.GovernanceConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioConfig;
 import com.huawei.ascend.edp.config.ScenarioConfigLoader;
-import com.huawei.ascend.edp.config.ScenarioDiscoveryConfig;
 import com.huawei.ascend.edp.config.ScenarioScopeConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
 import com.huawei.ascend.edp.enhancer.EdpaEventStreamAdapter;
@@ -164,21 +163,12 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         Path yamlDir = Path.of(configPath).toAbsolutePath().normalize().getParent();
 
         // 第四步：解析 scenarioHome 路径。
-        // scenarioHome 优先由 Spring Boot @Value 注入，指向活动场景目录（如 scenarios/wealth-demo）。
-        // 回退逻辑：如果 scenarioHome 未注入，从 yamlDir + scenario_discovery.base_path 解析（兼容旧模式）。
+        // scenarioHome 由 Spring Boot @Value 注入；未注入时跳过 scenario 加载，使用 governance 默认配置。
         if (scenarioHome != null && !scenarioHome.isBlank()) {
             scenarioHomePath = Path.of(scenarioHome).toAbsolutePath().normalize();
             LOGGER.info("scenarioHome resolved from Spring @Value: {} -> {}", scenarioHome, scenarioHomePath);
         } else {
-            // 回退：从 yamlDir 解析场景根目录（旧模式，resources/scenarios）
-            ScenarioDiscoveryConfig discovery = edpConfig.getScenarioDiscovery();
-            if (discovery != null) {
-                scenarioHomePath = yamlDir.resolve(discovery.getBasePath())
-                        .resolve(discovery.getActiveScenario()).toAbsolutePath().normalize();
-                LOGGER.info("scenarioHome resolved from yamlDir fallback: {}", scenarioHomePath);
-            } else {
-                LOGGER.warn("No scenarioHome and no scenario_discovery configured; scenario loading skipped.");
-            }
+            LOGGER.info("No scenarioHome configured; scenario loading skipped, using governance defaults.");
         }
 
         // 第五步：场景发现与加载（从 scenarioHomePath）。

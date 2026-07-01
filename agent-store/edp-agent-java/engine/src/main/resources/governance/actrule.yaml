@@ -40,5 +40,8 @@ actrule:
       - call_versatile
       - call_mcp
       - ask_user
-      - lite_todo_write
+      - todo_create
+      - todo_modify
+      - todo_list
+      - todo_get
       - cancel_task

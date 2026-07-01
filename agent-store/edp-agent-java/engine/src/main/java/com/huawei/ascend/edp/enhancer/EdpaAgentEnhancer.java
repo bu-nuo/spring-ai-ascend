@@ -197,7 +197,7 @@ public class EdpaAgentEnhancer {
      * 构造 EDPAgent 业务 Rails（完整参数版）。
      *
      * @param edpConfig EDP 配置
-     * @param agentConfig Agent 配置
+     * @param springBootConfig model / versatile 配置
      * @param toolDataChannel 工具数据通道
      * @param skillsDir 技能目录
      * @param passthroughBuffer Versatile 透传缓冲
@@ -205,7 +205,7 @@ public class EdpaAgentEnhancer {
      * @param edpaTodolist Todo 数据层（catalog entries + dynamic paths）
      * @return Rail 列表
      */
-    public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpAgentConfig agentConfig,
+    public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpaSpringBootConfig springBootConfig,
             ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
             DeepAgent deepAgent, EdpaTodolist edpaTodolist) {
         ToolDataChannel sharedChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();

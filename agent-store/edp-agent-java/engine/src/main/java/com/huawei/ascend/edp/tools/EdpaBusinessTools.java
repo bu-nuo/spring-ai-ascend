@@ -74,8 +74,10 @@ public final class EdpaBusinessTools {
         }
 
         for (String toolName : actrule.getAllowedTools()) {
-            // 跳过 DeepAgent 原生工具（由框架内部自动注册）
-            if ("bash".equals(toolName) || "skill_tool".equals(toolName)) {
+            // 跳过框架内部自动注册的工具（Core 框架 / DeepAgent 原生工具）
+            if ("bash".equals(toolName) || "skill_tool".equals(toolName)
+                    || "todo_create".equals(toolName) || "todo_modify".equals(toolName)
+                    || "todo_list".equals(toolName) || "todo_get".equals(toolName)) {
                 continue;
             }
 

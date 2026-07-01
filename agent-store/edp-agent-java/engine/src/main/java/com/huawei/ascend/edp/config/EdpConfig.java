@@ -20,7 +20,6 @@ import java.util.List;
  *     <li>{@link Utterances}：话术配置路径。</li>
  *     <li>{@link ThinkChunk}：思考过程分片配置。</li>
  *     <li>{@link LlmSampling}：模型采样参数。</li>
- *     <li>{@link Summary}：最终摘要配置。</li>
  *     <li>{@link Memory}：记忆开关配置。</li>
  * </ul>
  */
@@ -43,9 +42,6 @@ public class EdpConfig {
 
     /** 模型采样参数配置。 */
     private LlmSampling llmSampling;
-
-    /** 最终摘要格式配置。 */
-    private Summary summary;
 
     /** 场景发现配置。原 AgentRule.md 的 scenario_discovery 节。 */
     private ScenarioDiscoveryConfig scenarioDiscovery;
@@ -76,9 +72,6 @@ public class EdpConfig {
 
     public LlmSampling getLlmSampling() { return llmSampling; }
     public void setLlmSampling(LlmSampling llmSampling) { this.llmSampling = llmSampling; }
-
-    public Summary getSummary() { return summary; }
-    public void setSummary(Summary summary) { this.summary = summary; }
 
     /**
      * 业务范围配置。
@@ -236,26 +229,4 @@ public class EdpConfig {
         public void setMaxRetries(int maxRetries) { this.maxRetries = maxRetries; }
     }
 
-    /**
-     * 最终摘要配置。
-     */
-    public static class Summary {
-        /** 摘要格式。 */
-        private String format;
-
-        /** 摘要最大长度。 */
-        private int maxLength;
-
-        /** 摘要必填字段列表。 */
-        private List<String> requiredFields;
-
-        public String getFormat() { return format; }
-        public void setFormat(String format) { this.format = format; }
-
-        public int getMaxLength() { return maxLength; }
-        public void setMaxLength(int maxLength) { this.maxLength = maxLength; }
-
-        public List<String> getRequiredFields() { return requiredFields; }
-        public void setRequiredFields(List<String> requiredFields) { this.requiredFields = requiredFields; }
-    }
 }

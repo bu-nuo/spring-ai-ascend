@@ -4,14 +4,6 @@ scope:
   allowed: ""
   out_of_scope_message: "当前请求暂不在可处理范围内。"
 
-summary:
-  format: "需求概述→规划过程→任务执行情况→结果汇总→异常说明"
-  max_length: 500
-  required_fields:
-    - 用户查询
-    - 执行步骤
-    - 结果状态
-
 utterances:
   config_path: "./SysScriptsConfig.yaml"
 

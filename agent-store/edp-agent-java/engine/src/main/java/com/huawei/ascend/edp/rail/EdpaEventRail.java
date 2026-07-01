@@ -454,15 +454,22 @@ public class EdpaEventRail extends DeepAgentRail {
     @Override
     public void afterInvoke(AgentCallbackContext ctx) {
         String sid = sessionId(ctx);
+        // 出口 request_start：在 conversation_end 之前发射（修复 ScriptsRail priority=50 在 conversation_end 之后发射的 Rule 1 违规）
+        Object rt = ctx.getExtra().get(ScriptConstants.KEY_RESPONSE_TEMPLATE);
+        if (rt != null && !String.valueOf(rt).isBlank()) {
+            String resolved = String.valueOf(rt);
+            LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> emit exit request_start (before conversation_end)", sid);
+            emit(ctx, EdpaEventType.REQUEST_START, Map.of("content", resolved));
+            ctx.getExtra().remove(ScriptConstants.KEY_RESPONSE_TEMPLATE); // 清本请求残留，ScriptsRail.afterInvoke 不再重复发
+        }
         LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> emit conversation_end (if not already closed)", sid);
         emitConversationEnd(ctx, sid);
-        // 清理本轮状态（interruptActive 跨轮持久化，不在此清理）
+        // 清理本轮状态（interruptActive/interruptIdMap 跨轮持久化，不在此清理）
         lastTodolistFingerprint.remove(sid);
         thinkOpen.remove(sid);
         toolOpen.remove(sid);
         conversationClosed.remove(sid);
         prevTodoStatus.remove(sid);
-        interruptIdMap.remove(sid);
     }
 
     // ═══════════════════════════════════════════════════

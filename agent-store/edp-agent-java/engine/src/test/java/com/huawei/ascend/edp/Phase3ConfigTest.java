@@ -91,30 +91,6 @@ class Phase3ConfigTest {
         }
     }
 
-    // ── edp-config.yaml 话术配置路径 ──
-
-    @Test
-    void testUtterancesSysScriptsConfig() throws IOException {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            String content = Files.readString(configPath);
-            assertTrue(content.contains("SysScriptsConfig.yaml"),
-                    "话术配置路径应指向 SysScriptsConfig.yaml（替代 ScriptsConfig.md）");
-            assertFalse(content.contains("ScriptsConfig.md"),
-                    "不应引用旧版 ScriptsConfig.md");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
-        }
-    }
-
-    // ── SysScriptsConfig.yaml 存在 ──
-
-    @Test
-    void testSysScriptsConfigYamlExists() {
-        Path yamlPath = Path.of("src/main/resources/SysScriptsConfig.yaml").toAbsolutePath();
-        assertTrue(Files.exists(yamlPath), "SysScriptsConfig.yaml 应存在（替代 ScriptsConfig.md）");
-    }
-
     // ── application.yml 场景路径 ──
 
     @Test
@@ -222,7 +198,7 @@ class Phase3ConfigTest {
     @Test
     void testScriptsConfigMd_NotExist() {
         Path oldConfig = Path.of("src/main/resources/ScriptsConfig.md").toAbsolutePath();
-        assertFalse(Files.exists(oldConfig), "旧版 ScriptsConfig.md 应已删除（被 SysScriptsConfig.yaml 替代）");
+        assertFalse(Files.exists(oldConfig), "旧版 ScriptsConfig.md 应已删除");
     }
 
     // ── resources 下不应有 scenarios/skills 目录（方案 B）──

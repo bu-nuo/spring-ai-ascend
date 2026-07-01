@@ -4,9 +4,6 @@ scope:
   allowed: ""
   out_of_scope_message: "当前请求暂不在可处理范围内。"
 
-utterances:
-  config_path: "./SysScriptsConfig.yaml"
-
 think_chunk:
   mode: fixed_script
   chars_per_frame: 4

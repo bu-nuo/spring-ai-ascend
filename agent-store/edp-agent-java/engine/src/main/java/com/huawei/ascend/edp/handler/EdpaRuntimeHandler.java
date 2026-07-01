@@ -21,7 +21,6 @@ import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuf
 import com.huawei.ascend.edp.stream.PlanrulePromptBuilder;
 import com.huawei.ascend.edp.stream.ScenarioPromptBuilder;
 import com.huawei.ascend.edp.stream.SkillScriptsCollector;
-import com.huawei.ascend.edp.stream.SysScriptsConfig;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenAgentRuntimeHandler;
 import com.huawei.ascend.runtime.engine.spi.AgentExecutionResult;
@@ -255,26 +254,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 governanceConfig != null ? governanceConfig.getActrule() : null,
                 new ToolDataChannel(), skillsDir, versatilePassthroughBuffer, deepAgent, edpaTodolist);
 
-        // 第十三步：加载框架级、场景级、Skill 级话术。
-        SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
-        if (edpConfig.getUtterances() != null && edpConfig.getUtterances().getConfigPath() != null) {
-            Path scriptsConfigPath = yamlDir.resolve(edpConfig.getUtterances().getConfigPath()).toAbsolutePath().normalize();
-            sysScriptsConfig.load(scriptsConfigPath.toString());
-        }
-        if (scenarioHomePath != null) {
-            Path scenarioScriptsConfigPath = scenarioHomePath.resolve("ScriptsConfig.yaml").toAbsolutePath().normalize();
-            sysScriptsConfig.load(scenarioScriptsConfigPath.toString());
-        }
-        if (skillsDir != null && Files.exists(skillsDir)) {
-            Map<String, String> skillScripts = SkillScriptsCollector.collectSkillScripts(skillsDir);
-            sysScriptsConfig.mergeSkillScripts(skillScripts);
-            LOGGER.info("Skill scripts collected: {} entries from {}", skillScripts.size(), skillsDir);
-        } else {
-            LOGGER.info("No skills directory found; skill scripts collection skipped.");
-        }
-        LOGGER.info("SysScriptsConfig merged templates: {}", sysScriptsConfig.getTemplates().size());
-
-        // 第十四步：强制完成 DeepAgent 初始化。
+        // 第十三步：强制完成 DeepAgent 初始化。
         deepAgent.ensureInitialized();
 
         LOGGER.info("EdpaRuntimeHandler init completed, agentId={}, deepAgent initialized={}, scenarioHome={}",

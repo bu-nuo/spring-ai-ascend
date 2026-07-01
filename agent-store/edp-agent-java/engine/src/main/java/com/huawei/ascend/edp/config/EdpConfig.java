@@ -17,7 +17,6 @@ import java.util.List;
  *     <li>各字段 getter/setter：供 Jackson 反序列化和业务代码读取。</li>
  *     <li>{@link Scope}：业务范围配置。</li>
  *     <li>{@link TodolistStep}：轻量 Todo 步骤定义。</li>
- *     <li>{@link Utterances}：话术配置路径。</li>
  *     <li>{@link ThinkChunk}：思考过程分片配置。</li>
  *     <li>{@link LlmSampling}：模型采样参数。</li>
  *     <li>{@link Memory}：记忆开关配置。</li>
@@ -33,9 +32,6 @@ public class EdpConfig {
 
     /** 轻量 Todo 步骤定义。 */
     private List<TodolistStep> todolistSteps;
-
-    /** 话术模板配置。 */
-    private Utterances utterances;
 
     /** 思考分片配置。 */
     private ThinkChunk thinkChunk;
@@ -63,9 +59,6 @@ public class EdpConfig {
 
     public List<TodolistStep> getTodolistSteps() { return todolistSteps; }
     public void setTodolistSteps(List<TodolistStep> todolistSteps) { this.todolistSteps = todolistSteps; }
-
-    public Utterances getUtterances() { return utterances; }
-    public void setUtterances(Utterances utterances) { this.utterances = utterances; }
 
     public ThinkChunk getThinkChunk() { return thinkChunk; }
     public void setThinkChunk(ThinkChunk thinkChunk) { this.thinkChunk = thinkChunk; }
@@ -117,17 +110,6 @@ public class EdpConfig {
 
         public List<Integer> getDependsOn() { return dependsOn; }
         public void setDependsOn(List<Integer> dependsOn) { this.dependsOn = dependsOn; }
-    }
-
-    /**
-     * 话术模板配置。
-     */
-    public static class Utterances {
-        /** 话术配置文件路径，当前指向 ScriptsConfig.md。 */
-        private String configPath;
-
-        public String getConfigPath() { return configPath; }
-        public void setConfigPath(String configPath) { this.configPath = configPath; }
     }
 
     /**

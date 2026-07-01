@@ -38,19 +38,6 @@ class EdpConfigLoaderTest {
     }
 
     @Test
-    void testLoad_UtterancesConfigPath() {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            EdpConfig config = EdpConfigLoader.load(configPath);
-            assertNotNull(config.getUtterances(), "utterances 不应为 null");
-            assertEquals("./SysScriptsConfig.yaml", config.getUtterances().getConfigPath(),
-                    "话术配置路径应为 SysScriptsConfig.yaml（替代 ScriptsConfig.md）");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
-        }
-    }
-
-    @Test
     void testLoad_NonExistentFile() {
         // EdpConfigLoader 对不存在文件返回默认对象（降级设计）
         EdpConfig config = EdpConfigLoader.load(Path.of("/nonexistent/edp-config.yaml"));

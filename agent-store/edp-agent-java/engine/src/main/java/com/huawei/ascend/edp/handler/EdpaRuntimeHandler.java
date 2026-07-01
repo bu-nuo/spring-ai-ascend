@@ -6,7 +6,6 @@ import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
-import com.huawei.ascend.edp.config.EdpConfigLoader;
 import com.huawei.ascend.edp.config.EdpConfigValidator;
 import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.config.GovernanceConfig;
@@ -157,8 +156,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第一步：存储 Spring Boot 配置（替代 edp-agent.yaml）。
         this.springBootConfig = springBootConfig;
 
-        // 第二步：加载 EDP 专有配置。
-        edpConfig = EdpConfigLoader.load(Path.of(configPath));
+        // 第二步：edp-config.yaml 已删除，所有配置均迁移至 governance/ 下。
+        edpConfig = new EdpConfig();
         Path yamlDir = Path.of(configPath).toAbsolutePath().normalize().getParent();
 
         // 第四步：解析 scenarioHome 路径。

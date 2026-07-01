@@ -1,6 +1,0 @@
-# edp-config.yaml（框架级配置，替代 AgentRule.md）
-
-scope:
-  allowed: ""
-  out_of_scope_message: "当前请求暂不在可处理范围内。"
-

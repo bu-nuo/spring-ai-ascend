@@ -77,20 +77,6 @@ class Phase3ConfigTest {
         }
     }
 
-    // ── edp-config.yaml todolist 已迁移 ──
-
-    @Test
-    void testTodolistNotInFrameworkConfig() throws IOException {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            String content = Files.readString(configPath);
-            assertFalse(content.contains("todolist_steps"),
-                    "todolist_steps 不应在框架级配置中（已迁移至 scenario-config.yaml）");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
-        }
-    }
-
     // ── application.yml 场景路径 ──
 
     @Test

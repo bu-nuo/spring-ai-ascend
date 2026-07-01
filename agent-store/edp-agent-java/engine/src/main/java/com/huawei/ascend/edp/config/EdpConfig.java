@@ -17,7 +17,6 @@ import java.util.List;
  *     <li>各字段 getter/setter：供 Jackson 反序列化和业务代码读取。</li>
  *     <li>{@link Scope}：业务范围配置。</li>
  *     <li>{@link TodolistStep}：轻量 Todo 步骤定义。</li>
- *     <li>{@link ThinkChunk}：思考过程分片配置。</li>
  *     <li>{@link LlmSampling}：模型采样参数。</li>
  *     <li>{@link Memory}：记忆开关配置。</li>
  * </ul>
@@ -32,9 +31,6 @@ public class EdpConfig {
 
     /** 轻量 Todo 步骤定义。 */
     private List<TodolistStep> todolistSteps;
-
-    /** 思考分片配置。 */
-    private ThinkChunk thinkChunk;
 
     /** 模型采样参数配置。 */
     private LlmSampling llmSampling;
@@ -59,9 +55,6 @@ public class EdpConfig {
 
     public List<TodolistStep> getTodolistSteps() { return todolistSteps; }
     public void setTodolistSteps(List<TodolistStep> todolistSteps) { this.todolistSteps = todolistSteps; }
-
-    public ThinkChunk getThinkChunk() { return thinkChunk; }
-    public void setThinkChunk(ThinkChunk thinkChunk) { this.thinkChunk = thinkChunk; }
 
     public LlmSampling getLlmSampling() { return llmSampling; }
     public void setLlmSampling(LlmSampling llmSampling) { this.llmSampling = llmSampling; }
@@ -110,82 +103,6 @@ public class EdpConfig {
 
         public List<Integer> getDependsOn() { return dependsOn; }
         public void setDependsOn(List<Integer> dependsOn) { this.dependsOn = dependsOn; }
-    }
-
-    /**
-     * 思考分片配置。
-     */
-    public static class ThinkChunk {
-        /** 思考分片模式。 */
-        private String mode;
-
-        /** 每帧字符数。 */
-        private int charsPerFrame;
-
-        /** 两帧之间的 token 间隔。 */
-        private int tokensBetweenFrames;
-
-        /** 最小帧间隔，单位毫秒。 */
-        private int minIntervalMs;
-
-        /** 默认思考脚本。 */
-        private List<String> defaultScripts;
-
-        /** 按用户 query 关键词匹配的思考脚本。 */
-        private List<QueryPattern> queryPatterns;
-
-        /** 执行阶段脚本。 */
-        private List<String> executionScripts;
-
-        /** 恢复阶段脚本。 */
-        private List<String> resumeScripts;
-
-        /** 通用脚本列表。 */
-        private List<String> scripts;
-
-        public String getMode() { return mode; }
-        public void setMode(String mode) { this.mode = mode; }
-
-        public int getCharsPerFrame() { return charsPerFrame; }
-        public void setCharsPerFrame(int charsPerFrame) { this.charsPerFrame = charsPerFrame; }
-
-        public int getTokensBetweenFrames() { return tokensBetweenFrames; }
-        public void setTokensBetweenFrames(int tokensBetweenFrames) { this.tokensBetweenFrames = tokensBetweenFrames; }
-
-        public int getMinIntervalMs() { return minIntervalMs; }
-        public void setMinIntervalMs(int minIntervalMs) { this.minIntervalMs = minIntervalMs; }
-
-        public List<String> getDefaultScripts() { return defaultScripts; }
-        public void setDefaultScripts(List<String> defaultScripts) { this.defaultScripts = defaultScripts; }
-
-        public List<QueryPattern> getQueryPatterns() { return queryPatterns; }
-        public void setQueryPatterns(List<QueryPattern> queryPatterns) { this.queryPatterns = queryPatterns; }
-
-        public List<String> getExecutionScripts() { return executionScripts; }
-        public void setExecutionScripts(List<String> executionScripts) { this.executionScripts = executionScripts; }
-
-        public List<String> getResumeScripts() { return resumeScripts; }
-        public void setResumeScripts(List<String> resumeScripts) { this.resumeScripts = resumeScripts; }
-
-        public List<String> getScripts() { return scripts; }
-        public void setScripts(List<String> scripts) { this.scripts = scripts; }
-    }
-
-    /**
-     * 用户 query 关键词到脚本的匹配配置。
-     */
-    public static class QueryPattern {
-        /** 关键词列表。 */
-        private List<String> keywords;
-
-        /** 匹配关键词后使用的脚本列表。 */
-        private List<String> scripts;
-
-        public List<String> getKeywords() { return keywords; }
-        public void setKeywords(List<String> keywords) { this.keywords = keywords; }
-
-        public List<String> getScripts() { return scripts; }
-        public void setScripts(List<String> scripts) { this.scripts = scripts; }
     }
 
     /**

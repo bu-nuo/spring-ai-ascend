@@ -4,11 +4,3 @@ scope:
   allowed: ""
   out_of_scope_message: "当前请求暂不在可处理范围内。"
 
-think_chunk:
-  mode: fixed_script
-  chars_per_frame: 4
-  tokens_between_frames: 2
-  min_interval_ms: 50
-  default_scripts:
-    - "正在处理您的请求..."
-  query_patterns: []

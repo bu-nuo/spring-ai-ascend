@@ -1,7 +1,6 @@
 package com.huawei.ascend.edp.config;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * edp-config.yaml 专有配置模型。
@@ -17,7 +16,6 @@ import java.util.Map;
  * <ul>
  *     <li>各字段 getter/setter：供 Jackson 反序列化和业务代码读取。</li>
  *     <li>{@link Scope}：业务范围配置。</li>
- *     <li>{@link Limits}：迭代、输入和工具调用限制。</li>
  *     <li>{@link TodolistStep}：轻量 Todo 步骤定义。</li>
  *     <li>{@link Utterances}：话术配置路径。</li>
  *     <li>{@link ThinkChunk}：思考过程分片配置。</li>
@@ -33,9 +31,6 @@ public class EdpConfig {
 
     /** 规划步骤文本列表。 */
     private List<String> planningSteps;
-
-    /** 执行限制配置。 */
-    private Limits limits;
 
     /** 轻量 Todo 步骤定义。 */
     private List<TodolistStep> todolistSteps;
@@ -70,9 +65,6 @@ public class EdpConfig {
     public List<String> getPlanningSteps() { return planningSteps; }
     public void setPlanningSteps(List<String> planningSteps) { this.planningSteps = planningSteps; }
 
-    public Limits getLimits() { return limits; }
-    public void setLimits(Limits limits) { this.limits = limits; }
-
     public List<TodolistStep> getTodolistSteps() { return todolistSteps; }
     public void setTodolistSteps(List<TodolistStep> todolistSteps) { this.todolistSteps = todolistSteps; }
 
@@ -103,17 +95,6 @@ public class EdpConfig {
 
         public String getOutOfScopeMessage() { return outOfScopeMessage; }
         public void setOutOfScopeMessage(String outOfScopeMessage) { this.outOfScopeMessage = outOfScopeMessage; }
-    }
-
-    /**
-     * 执行限制配置。
-     */
-    public static class Limits {
-        /** 单工具调用次数上限，key 为工具名。 */
-        private Map<String, Integer> tasks;
-
-        public Map<String, Integer> getTasks() { return tasks; }
-        public void setTasks(Map<String, Integer> tasks) { this.tasks = tasks; }
     }
 
     /**

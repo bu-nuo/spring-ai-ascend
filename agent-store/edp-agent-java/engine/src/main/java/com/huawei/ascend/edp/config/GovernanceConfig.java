@@ -139,6 +139,9 @@ public class GovernanceConfig {
         if (scenarioActrule.getSkillMode() != null) {
             this.actrule.setSkillMode(scenarioActrule.getSkillMode());
         }
+        if (scenarioActrule.getToolLimits() != null) {
+            this.actrule.setToolLimits(scenarioActrule.getToolLimits());
+        }
     }
 
     /**

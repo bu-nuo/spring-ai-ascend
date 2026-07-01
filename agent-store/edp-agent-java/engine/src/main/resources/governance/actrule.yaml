@@ -33,6 +33,13 @@ actrule:
   # 限制最大重试次数
   max_retry_count: 3
 
+  # 单个工具调用次数上限（key: 工具名, value: 上限值）
+  tool_limits:
+    call_versatile: 100
+    call_mcp: 100
+    ask_user: 100
+    execute_cmd: 100
+
   # 允许调用的工具列表
   allowed_tools:
       - bash

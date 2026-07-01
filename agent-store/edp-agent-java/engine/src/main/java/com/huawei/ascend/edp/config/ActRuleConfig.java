@@ -1,6 +1,7 @@
 package com.huawei.ascend.edp.config;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * actrule.yaml 配置模型。
@@ -44,6 +45,9 @@ public class ActRuleConfig {
      */
     private String skillMode;
 
+    /** 单个工具调用次数上限，key 为工具名，value 为上限值。 */
+    private Map<String, Integer> toolLimits;
+
     public Integer getMaxSubtasks() { return maxSubtasks; }
     public void setMaxSubtasks(Integer maxSubtasks) { this.maxSubtasks = maxSubtasks; }
 
@@ -70,4 +74,7 @@ public class ActRuleConfig {
 
     public String getSkillMode() { return skillMode; }
     public void setSkillMode(String skillMode) { this.skillMode = skillMode; }
+
+    public Map<String, Integer> getToolLimits() { return toolLimits; }
+    public void setToolLimits(Map<String, Integer> toolLimits) { this.toolLimits = toolLimits; }
 }

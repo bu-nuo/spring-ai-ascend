@@ -53,11 +53,10 @@ public class EdpConfigLoader {
             // 关键跳转：先读取完整 YAML 文本，再反序列化为 EDP 专有配置对象。
             String content = Files.readString(yamlPath);
             EdpConfig config = YAML_MAPPER.readValue(content, EdpConfig.class);
-            LOGGER.info("edp-config.yaml loaded from {}, scope={}, todolistSteps={}, limits.tasks={}",
+            LOGGER.info("edp-config.yaml loaded from {}, scope={}, todolistSteps={}",
                     yamlPath,
                     config.getScope() != null ? config.getScope().getAllowed() : "null",
-                    config.getTodolistSteps() != null ? config.getTodolistSteps().size() : 0,
-                    config.getLimits() != null && config.getLimits().getTasks() != null ? config.getLimits().getTasks().size() : "null");
+                    config.getTodolistSteps() != null ? config.getTodolistSteps().size() : 0);
             return config;
         } catch (IOException e) {
             // 解析失败时降级为默认配置，避免 spike 阶段因配置问题导致服务无法启动。

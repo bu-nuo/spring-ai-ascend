@@ -51,20 +51,6 @@ class EdpConfigLoaderTest {
     }
 
     @Test
-    void testLoad_Limits() {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            EdpConfig config = EdpConfigLoader.load(configPath);
-            assertNotNull(config.getLimits(), "limits 不应为 null");
-            assertNotNull(config.getLimits().getTasks(), "limits.tasks 不应为 null");
-            assertTrue(config.getLimits().getTasks().containsKey("call_versatile"),
-                    "limits 应包含 call_versatile 限制");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
-        }
-    }
-
-    @Test
     void testLoad_NonExistentFile() {
         // EdpConfigLoader 对不存在文件返回默认对象（降级设计）
         EdpConfig config = EdpConfigLoader.load(Path.of("/nonexistent/edp-config.yaml"));

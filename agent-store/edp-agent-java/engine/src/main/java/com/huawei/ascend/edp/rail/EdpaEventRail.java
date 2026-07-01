@@ -11,6 +11,7 @@ import com.openjiuwen.core.foundation.llm.schema.ToolCall;
 import com.openjiuwen.core.singleagent.rail.AgentCallbackContext;
 import com.openjiuwen.core.singleagent.rail.ModelCallInputs;
 import com.openjiuwen.core.singleagent.rail.ToolCallInputs;
+import com.openjiuwen.core.common.exception.BaseError;
 import com.openjiuwen.core.singleagent.interrupt.ToolInterruptException;
 import com.openjiuwen.core.session.stream.OutputSchema;
 import com.openjiuwen.harness.deep_agent.DeepAgent;
@@ -80,6 +81,12 @@ public class EdpaEventRail extends DeepAgentRail {
      * key 为 sessionId，value 为 true/false。
      */
     private final Map<String, Boolean> interruptActive = new ConcurrentHashMap<>();
+
+    /**
+     * 当前活跃中断的 interrupt_id（UUID），与 interruptActive 同生命周期，跨轮持久化。
+     * onToolException 生成 UUID 存入，afterToolCall interrupt_end 取出，afterInvoke 兜底清理。
+     */
+    private final Map<String, String> interruptIdMap = new ConcurrentHashMap<>();
 
     /**
      * 标记当前轮 think_start 是否尚未闭合（think_end 未发）。
@@ -316,8 +323,12 @@ public class EdpaEventRail extends DeepAgentRail {
         // ask_user 中断恢复：检测 _skip_tool 标记 + interruptActive 配对
         if (TOOL_ASK_USER.equals(toolName) && Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_SKIP_TOOL))) {
             if (interruptActive.getOrDefault(sid, false)) {
-                LOGGER.info("[EDPA-DIAG] afterToolCall tool={} interrupt resume -> emit interrupt_end", toolName);
-                emit(ctx, EdpaEventType.INTERRUPT_END, Map.of("tool", toolName));
+                String interruptId = interruptIdMap.remove(sid);
+                LOGGER.info("[EDPA-DIAG] afterToolCall tool={} interrupt resume -> emit interrupt_end(interrupt_id={})", toolName, interruptId);
+                Map<String, Object> endPayload = new java.util.LinkedHashMap<>();
+                endPayload.put("tool", toolName);
+                endPayload.put("interrupt_id", interruptId != null ? interruptId : "");
+                emit(ctx, EdpaEventType.INTERRUPT_END, endPayload);
                 interruptActive.remove(sid);
             }
             return;
@@ -345,10 +356,15 @@ public class EdpaEventRail extends DeepAgentRail {
             thinkOpen.put(sid, false);
         }
         Exception ex = ctx.getException();
-        LOGGER.error("[EDPA-DIAG] onModelException -> emit error_event(stage=model), type={}, msg={}",
+        String errorType = classifyModelError(ex);
+        LOGGER.error("[EDPA-DIAG] onModelException -> emit error_event(stage=model, error_type={}), type={}, msg={}",
+                errorType,
                 ex == null ? "null" : ex.getClass().getName(),
                 ex == null ? "null" : truncate(String.valueOf(ex.getMessage()), 200));
-        emit(ctx, EdpaEventType.ERROR_EVENT, Map.of("stage", "model"));
+        emit(ctx, EdpaEventType.ERROR_EVENT, Map.of(
+                "stage", "model",
+                "error_type", errorType,
+                "content", errorContent(errorType)));
         emitConversationEnd(ctx, sid);
     }
 
@@ -382,6 +398,8 @@ public class EdpaEventRail extends DeepAgentRail {
         }
         if (cause instanceof ToolInterruptException) {
             interruptActive.put(sid, true);
+            String interruptId = java.util.UUID.randomUUID().toString();
+            interruptIdMap.put(sid, interruptId);
             String toolName = "";
             if (ctx.getInputs() instanceof ToolCallInputs inputs) {
                 toolName = inputs.getToolName();
@@ -395,8 +413,11 @@ public class EdpaEventRail extends DeepAgentRail {
             Object rt = ctx.getExtra().get(ScriptConstants.KEY_RESPONSE_TEMPLATE);
             String content = (rt != null && !String.valueOf(rt).isBlank())
                     ? String.valueOf(rt) : ScriptResolver.interruptStart(scripts);
-            LOGGER.info("[EDPA-DIAG] onToolException ToolInterruptException -> emit interrupt_start(tool={})", toolName);
-            emit(ctx, EdpaEventType.INTERRUPT_START, Map.of("tool", toolName, "content", content));
+            LOGGER.info("[EDPA-DIAG] onToolException ToolInterruptException -> emit interrupt_start(tool={}, interrupt_id={})", toolName, interruptId);
+            emit(ctx, EdpaEventType.INTERRUPT_START, Map.of(
+                    "tool", toolName,
+                    "content", content,
+                    "interrupt_id", interruptId));
             return; // 正常中断，不发 error_event，conversation_end 由 afterInvoke 发射
         }
 
@@ -410,8 +431,12 @@ public class EdpaEventRail extends DeepAgentRail {
             emit(ctx, EdpaEventType.TOOL_END, Map.of("tool", toolName, "status", "failed"));
             toolOpen.put(sid, false);
         }
-        LOGGER.error("[EDPA-DIAG] onToolException -> emit error_event(stage=tool)");
-        emit(ctx, EdpaEventType.ERROR_EVENT, Map.of("stage", "tool"));
+        String toolErrorType = classifyToolError(exception);
+        LOGGER.error("[EDPA-DIAG] onToolException -> emit error_event(stage=tool, error_type={})", toolErrorType);
+        emit(ctx, EdpaEventType.ERROR_EVENT, Map.of(
+                "stage", "tool",
+                "error_type", toolErrorType,
+                "content", errorContent(toolErrorType)));
         emitConversationEnd(ctx, sid);
     }
 
@@ -437,6 +462,7 @@ public class EdpaEventRail extends DeepAgentRail {
         toolOpen.remove(sid);
         conversationClosed.remove(sid);
         prevTodoStatus.remove(sid);
+        interruptIdMap.remove(sid);
     }
 
     // ═══════════════════════════════════════════════════
@@ -455,6 +481,100 @@ public class EdpaEventRail extends DeepAgentRail {
         }
         emit(ctx, EdpaEventType.CONVERSATION_END, Map.of());
         conversationClosed.put(sid, true);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 异常分类（error_type 6 种枚举映射）
+    // ═══════════════════════════════════════════════════
+
+    /**
+     * 模型异常分类：LLM_TIMEOUT / LLM_AUTH_ERROR / INTERNAL_ERROR。
+     *
+     * <p>判断优先级：BaseError.StatusCode 枚举 → cause 原始异常类型 → message 文字匹配 → 兜底。</p>
+     */
+    private static String classifyModelError(Exception ex) {
+        if (ex == null) {
+            return "INTERNAL_ERROR";
+        }
+        // 第一层：框架 BaseError 的 StatusCode 枚举判断（精确）
+        if (ex instanceof BaseError be) {
+            String status = String.valueOf(be.getStatus());
+            switch (status) {
+                case "MODEL_SERVICE_CONFIG_ERROR":
+                    return "LLM_AUTH_ERROR";
+                case "MODEL_INVOKE_PARAM_ERROR":
+                    return "INTERNAL_ERROR";
+                case "MODEL_CALL_FAILED":
+                    // 第二层：看 cause 原始异常类型
+                    Throwable cause = be.getCause();
+                    if (cause != null) {
+                        if (cause instanceof java.net.http.HttpTimeoutException) {
+                            return "LLM_TIMEOUT";
+                        }
+                        String cm = String.valueOf(cause.getMessage()).toLowerCase();
+                        if (cm.contains("401") || cm.contains("unauthorized")) {
+                            return "LLM_AUTH_ERROR";
+                        }
+                    }
+                    // 兜底：message 文字匹配
+                    String msg = String.valueOf(be.getMessage()).toLowerCase();
+                    if (msg.contains("timeout") || msg.contains("timed out")) {
+                        return "LLM_TIMEOUT";
+                    }
+                    if (msg.contains("401") || msg.contains("unauthorized") || msg.contains("auth")) {
+                        return "LLM_AUTH_ERROR";
+                    }
+                    return "INTERNAL_ERROR";
+                default:
+                    return "INTERNAL_ERROR";
+            }
+        }
+        // 兜底：非 BaseError，退化为文字匹配
+        String msg = String.valueOf(ex.getMessage()).toLowerCase();
+        String cls = ex.getClass().getName().toLowerCase();
+        if (msg.contains("timeout") || msg.contains("timed out") || cls.contains("timeout")) {
+            return "LLM_TIMEOUT";
+        }
+        if (msg.contains("401") || msg.contains("unauthorized") || msg.contains("auth")) {
+            return "LLM_AUTH_ERROR";
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    /**
+     * 工具异常分类：TOOL_TIMEOUT / INVALID_TOOL_OUTPUT / DEPENDENCY_VIOLATION / INTERNAL_ERROR。
+     */
+    private static String classifyToolError(Exception ex) {
+        if (ex == null) {
+            return "INTERNAL_ERROR";
+        }
+        String msg = String.valueOf(ex.getMessage()).toLowerCase();
+        String cls = ex.getClass().getName().toLowerCase();
+        if (msg.contains("timeout") || msg.contains("timed out") || cls.contains("timeout")) {
+            return "TOOL_TIMEOUT";
+        }
+        if (msg.contains("json") || msg.contains("parse") || msg.contains("invalid")
+                || cls.contains("jsonparse") || cls.contains("jsonmapping")) {
+            return "INVALID_TOOL_OUTPUT";
+        }
+        if (msg.contains("依赖") || msg.contains("depend") || msg.contains("循环")) {
+            return "DEPENDENCY_VIOLATION";
+        }
+        return "INTERNAL_ERROR";
+    }
+
+    /**
+     * error_type → 用户可见话术映射。
+     */
+    private static String errorContent(String errorType) {
+        switch (errorType) {
+            case "LLM_TIMEOUT": return "LLM 调用超时，请稍后重试";
+            case "LLM_AUTH_ERROR": return "LLM 认证失败，请检查 API Key 配置";
+            case "INVALID_TOOL_OUTPUT": return "工具返回数据格式错误";
+            case "TOOL_TIMEOUT": return "工具执行超时，请稍后重试";
+            case "DEPENDENCY_VIOLATION": return "任务依赖校验失败，存在缺失或循环依赖";
+            default: return "系统内部错误，请稍后重试";
+        }
     }
 
     /**

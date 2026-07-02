@@ -11,8 +11,8 @@ framework:
 
 model:
   provider: OpenAI
-  name: deepseek-v4-pro
-  baseUrl: https://api.deepseek.com/v1
+  name: MiniMax-M2.7
+  baseUrl: https://api.minimax.chat/v1
   apiKey: PLACEHOLDER_USE_ENV_VAR
 
 versatile:

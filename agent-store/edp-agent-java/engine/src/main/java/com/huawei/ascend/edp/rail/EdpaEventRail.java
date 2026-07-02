@@ -69,6 +69,9 @@ public class EdpaEventRail extends DeepAgentRail {
     private static final String TOOL_CALL_VERSATILE = ToolConstants.CALL_VERSATILE;
     private static final String TOOL_ASK_USER = ToolConstants.ASK_USER;
 
+    /** 延迟 think 的 extra key：当 LLM 本轮只调用 todo_modify 时，think 延迟到 todo_end 之后发射。 */
+    private static final String KEY_PENDING_THINK = "_edp_pending_think";
+
     /**
      * 上一轮发射的 todolist 指纹，用于检测任务列表是否变化并决定是否重推。
      * key 为 sessionId，value 为 todolist 内容指纹。
@@ -229,13 +232,20 @@ public class EdpaEventRail extends DeepAgentRail {
         }
 
         // ① 发 think 对（每轮 LLM 一对，严格配对，Rule 2）
-        thinkOpen.put(sid, true);
-        emit(ctx, EdpaEventType.THINK_START, Map.of());
-        if (!thinkContent.isBlank()) {
-            emit(ctx, EdpaEventType.THINK_CHUNK, Map.of("content", thinkContent));
+        // 如果本轮 LLM 只调用 todo_modify（无业务工具），延迟 think 到 afterToolCall 的 todo_end 之后发射，
+        // 使事件流为 tool_end → todo_end → think → todolist（而非 tool_end → think → todo_end → todolist）。
+        if (isOnlyTodoModify(msg)) {
+            ctx.getExtra().put(KEY_PENDING_THINK, thinkContent);
+            LOGGER.info("[EDPA-DIAG] afterModelCall sid={} -> delay think (onlyTodoModify)", sid);
+        } else {
+            thinkOpen.put(sid, true);
+            emit(ctx, EdpaEventType.THINK_START, Map.of());
+            if (!thinkContent.isBlank()) {
+                emit(ctx, EdpaEventType.THINK_CHUNK, Map.of("content", thinkContent));
+            }
+            emit(ctx, EdpaEventType.THINK_END, Map.of());
+            thinkOpen.put(sid, false);
         }
-        emit(ctx, EdpaEventType.THINK_END, Map.of());
-        thinkOpen.put(sid, false);
 
         // ② finish_reason=stop 且无 tool_calls → 发 final_answer 对
         if (isFinalAnswer(msg)) {
@@ -338,6 +348,22 @@ public class EdpaEventRail extends DeepAgentRail {
         if (TOOL_TODO_CREATE.equals(toolName) || TOOL_TODO_MODIFY.equals(toolName)) {
             LOGGER.info("[EDPA-DIAG] afterToolCall todo tool={} -> emitTodoEvents", toolName);
             emitTodoEvents(ctx);
+        }
+
+        // 兜底：如果 think 被延迟但仍未发射（todo 状态无变化时 emitTodoEvents 内部不会触发），在此补发
+        Object pendingThink = ctx.getExtra().get(KEY_PENDING_THINK);
+        if (pendingThink != null) {
+            String pendingSid = sessionId(ctx);
+            String thinkContent = String.valueOf(pendingThink);
+            thinkOpen.put(pendingSid, true);
+            emit(ctx, EdpaEventType.THINK_START, Map.of());
+            if (!thinkContent.isBlank()) {
+                emit(ctx, EdpaEventType.THINK_CHUNK, Map.of("content", thinkContent));
+            }
+            emit(ctx, EdpaEventType.THINK_END, Map.of());
+            thinkOpen.put(pendingSid, false);
+            ctx.getExtra().remove(KEY_PENDING_THINK);
+            LOGGER.info("[EDPA-DIAG] afterToolCall sid={} -> emit delayed think (fallback)", pendingSid);
         }
     }
 
@@ -455,17 +481,22 @@ public class EdpaEventRail extends DeepAgentRail {
     public void afterInvoke(AgentCallbackContext ctx) {
         String sid = sessionId(ctx);
         // 出口 request_start：在 conversation_end 之前发射（EdpaEventRail priority=80 是唯一出口发射者）
+        // 当本轮有 interrupt_start（ask_user 中断）时不发射——interrupt_start.content 已携带话术文本，request_start 冗余
         Object rt = ctx.getExtra().get(ScriptConstants.KEY_RESPONSE_TEMPLATE);
         if (rt != null && !String.valueOf(rt).isBlank()) {
-            String resolved = String.valueOf(rt);
-            // 合规把关：配置外话术 → 替换为 out_of_scope
-            Object lastKey = ctx.getExtra().get(ScriptConstants.KEY_LAST_SCRIPT);
-            if (scripts != null && lastKey != null && !scripts.has(String.valueOf(lastKey))) {
-                resolved = scripts.getOrDefault(ScriptConstants.SCRIPT_OUT_OF_SCOPE, "");
-                LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> compliance gate replaced key={}", sid, lastKey);
+            if (!interruptActive.getOrDefault(sid, false)) {
+                String resolved = String.valueOf(rt);
+                // 合规把关：配置外话术 → 替换为 out_of_scope
+                Object lastKey = ctx.getExtra().get(ScriptConstants.KEY_LAST_SCRIPT);
+                if (scripts != null && lastKey != null && !scripts.has(String.valueOf(lastKey))) {
+                    resolved = scripts.getOrDefault(ScriptConstants.SCRIPT_OUT_OF_SCOPE, "");
+                    LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> compliance gate replaced key={}", sid, lastKey);
+                }
+                LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> emit exit request_start (before conversation_end)", sid);
+                emit(ctx, EdpaEventType.REQUEST_START, Map.of("content", resolved));
+            } else {
+                LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> skip exit request_start (interrupt active, content redundant)", sid);
             }
-            LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> emit exit request_start (before conversation_end)", sid);
-            emit(ctx, EdpaEventType.REQUEST_START, Map.of("content", resolved));
             ctx.getExtra().remove(ScriptConstants.KEY_RESPONSE_TEMPLATE);
         }
         LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> emit conversation_end (if not already closed)", sid);
@@ -654,25 +685,34 @@ public class EdpaEventRail extends DeepAgentRail {
             }
         }
 
-        // ① end 转移：先 todo_end，后 todolist（Rule 10/11，todolist 在对外的结束侧）
+        // ① end 转移：发 todo_end
         if (hasEnd) {
             emitTodoEnds(ctx, todos, prevMap);
-            if (changed) {
-                emitTodolistPerItem(ctx, todos);
-            }
         }
-        // ② start 转移：先 todolist，后 todo_start（Rule 11，todolist 在对外的开始侧）
+
+        // ①.5 延迟 think：在 todo_end 之后、todolist 之前发射（使 tool_end → todo_end → think → todolist）
+        Object pendingThink = ctx.getExtra().get(KEY_PENDING_THINK);
+        if (pendingThink != null) {
+            String thinkContent = String.valueOf(pendingThink);
+            thinkOpen.put(sid, true);
+            emit(ctx, EdpaEventType.THINK_START, Map.of());
+            if (!thinkContent.isBlank()) {
+                emit(ctx, EdpaEventType.THINK_CHUNK, Map.of("content", thinkContent));
+            }
+            emit(ctx, EdpaEventType.THINK_END, Map.of());
+            thinkOpen.put(sid, false);
+            ctx.getExtra().remove(KEY_PENDING_THINK);
+            LOGGER.info("[EDPA-DIAG] emitTodoEvents sid={} -> emit delayed think after todo_end", sid);
+        }
+
+        // ② todolist 刷新：只发1次（end + start 合并，消除重复）
+        if (changed) {
+            emitTodolistPerItem(ctx, todos);
+        }
+
+        // ③ start 转移：发 todo_start
         if (hasStart) {
-            if (changed) {
-                emitTodolistPerItem(ctx, todos);
-            }
             emitTodoStarts(ctx, todos, prevMap);
-        }
-        // ③ 路径切换：独立 todolist（无 todo_start/todo_end）
-        if (hasPathSwitch && !hasEnd && !hasStart) {
-            if (changed) {
-                emitTodolistPerItem(ctx, todos);
-            }
         }
 
         if (changed) {
@@ -856,6 +896,69 @@ public class EdpaEventRail extends DeepAgentRail {
             }
         }
         return false;
+    }
+
+    /**
+     * 检测 LLM 本轮是否只调用 todo_modify（无业务工具、无 todo_create、无 ask_user）。
+     *
+     * <p>用于延迟 think 发射：当 LLM 本轮只调 todo_modify 时，think 是"状态更新推理"，
+     * 应放在 todo_end 之后、todolist 之前，使事件流为 tool_end → todo_end → think → todolist。</p>
+     */
+    private static boolean isOnlyTodoModify(AssistantMessage msg) {
+        List<ToolCall> tcs = msg.getToolCalls();
+        if (tcs == null || tcs.isEmpty()) {
+            return false;
+        }
+        for (ToolCall tc : tcs) {
+            if (tc == null) continue;
+            String name = tc.getName();
+            if (!ToolConstants.TODO_MODIFY.equals(name)) {
+                return false; // 有非 todo_modify 的工具调用
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 当 LLM 返回 tool_calls 但 reasoning_content 为空时，生成业务话术替代 think_chunk 内容。
+     *
+     * <p>DashScope 在 tool_calls 模式下不返回 reasoning_content，导致 think_start→think_end 之间
+     * 无 think_chunk（空 think）。此方法根据 LLM 调用的工具名生成业务话术，使 think 事件
+     * 符合业务语义和人的理解。对应 edp-config.yaml 的 think_chunk.mode=fixed_script 机制。</p>
+     *
+     * <p>优先级：tool_calls 中的工具名映射 → SysScriptsConfig.thinking 兜底 → 硬编码兜底。</p>
+     */
+    private String generateFallbackThink(AssistantMessage msg) {
+        List<ToolCall> tcs = msg.getToolCalls();
+        if (tcs != null && !tcs.isEmpty()) {
+            for (ToolCall tc : tcs) {
+                if (tc == null) continue;
+                String name = tc.getName();
+                if (TOOL_TODO_CREATE.equals(name)) {
+                    return "正在为您规划任务步骤...";
+                }
+                if (TOOL_TODO_MODIFY.equals(name)) {
+                    return "正在更新任务状态...";
+                }
+                if (TOOL_CALL_VERSATILE.equals(name)) {
+                    return "正在调用业务服务...";
+                }
+                if (TOOL_CALL_MCP.equals(name)) {
+                    return "正在调用外部服务...";
+                }
+                if (TOOL_ASK_USER.equals(name)) {
+                    return "需要您的进一步确认...";
+                }
+            }
+        }
+        // 无 tool_calls 或未匹配的工具 → 使用配置兜底
+        if (scripts != null) {
+            String def = scripts.getOrDefault("thinking", "");
+            if (!def.isBlank()) {
+                return def;
+            }
+        }
+        return "正在处理您的请求...";
     }
 
     private static boolean isInProgress(TodoStatus status) {

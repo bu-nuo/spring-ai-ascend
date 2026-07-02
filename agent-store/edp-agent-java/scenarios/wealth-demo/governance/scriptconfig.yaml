@@ -13,3 +13,11 @@ scriptconfig:
         - keywords: ["余额", "查询", "账户", "转账"]
           scripts:
             - "正在查询账户信息..."
+
+  # ask_user 中断确认话术模板
+  # @用途: 用户确认购买/取消等中断场景的话术模板
+  # @策略: 继承式覆盖（逐字段合并）
+  # @消费方: AskUserTemplateRail（预留建模，当前未消费）
+  ask_user_confirm:
+    purchase_confirm: "确认购买以下产品：{product_name}，金额 {amount} 元。"
+    cancel_confirm: "取消当前购买操作。"

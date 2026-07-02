@@ -191,6 +191,28 @@ public class GovernanceConfig {
         if (scenarioScriptconfig.getSummary() != null) {
             this.scriptconfig.setSummary(scenarioScriptconfig.getSummary());
         }
+
+        // askUserConfirm: 继承式覆盖
+        if (scenarioScriptconfig.getAskUserConfirm() != null) {
+            mergeAskUserConfirm(scenarioScriptconfig.getAskUserConfirm());
+        }
+    }
+
+    /**
+     * 合并 askUserConfirm 配置（继承式覆盖，逐字段合并）。
+     */
+    private void mergeAskUserConfirm(ScriptConfig.AskUserConfirm scenarioConfirm) {
+        if (this.scriptconfig.getAskUserConfirm() == null) {
+            this.scriptconfig.setAskUserConfirm(new ScriptConfig.AskUserConfirm());
+        }
+        ScriptConfig.AskUserConfirm target = this.scriptconfig.getAskUserConfirm();
+
+        if (scenarioConfirm.getPurchaseConfirm() != null) {
+            target.setPurchaseConfirm(scenarioConfirm.getPurchaseConfirm());
+        }
+        if (scenarioConfirm.getCancelConfirm() != null) {
+            target.setCancelConfirm(scenarioConfirm.getCancelConfirm());
+        }
     }
 
     /**

@@ -24,6 +24,9 @@ public class ScriptConfig {
     /** 执行总结格式配置。 */
     private Summary summary;
 
+    /** ask_user 中断确认话术配置。 */
+    private AskUserConfirm askUserConfirm;
+
     public GeneralScripts getGeneralScripts() { return generalScripts; }
     public void setGeneralScripts(GeneralScripts generalScripts) { this.generalScripts = generalScripts; }
 
@@ -32,6 +35,9 @@ public class ScriptConfig {
 
     public Summary getSummary() { return summary; }
     public void setSummary(Summary summary) { this.summary = summary; }
+
+    public AskUserConfirm getAskUserConfirm() { return askUserConfirm; }
+    public void setAskUserConfirm(AskUserConfirm askUserConfirm) { this.askUserConfirm = askUserConfirm; }
 
     /**
      * 通用话术配置，用于业务流程状态（工具调用、中断、取消等）。
@@ -172,5 +178,24 @@ public class ScriptConfig {
 
         public List<String> getRequiredFields() { return requiredFields; }
         public void setRequiredFields(List<String> requiredFields) { this.requiredFields = requiredFields; }
+    }
+
+    /**
+     * ask_user 中断确认话术配置。
+     *
+     * <p>消费方：AskUserTemplateRail（spike 阶段，当前未读取 YAML，预留建模）。</p>
+     */
+    public static class AskUserConfirm {
+        /** 购买确认话术模板，支持 {product_name}、{amount} 等占位符。 */
+        private String purchaseConfirm;
+
+        /** 取消确认话术模板。 */
+        private String cancelConfirm;
+
+        public String getPurchaseConfirm() { return purchaseConfirm; }
+        public void setPurchaseConfirm(String purchaseConfirm) { this.purchaseConfirm = purchaseConfirm; }
+
+        public String getCancelConfirm() { return cancelConfirm; }
+        public void setCancelConfirm(String cancelConfirm) { this.cancelConfirm = cancelConfirm; }
     }
 }

@@ -251,7 +251,7 @@ public class EdpaAgentEnhancer {
         rails.add(new McpInterruptRail(edpConfig, sharedChannel, skillsDir));
         rails.add(new VersatileInterruptRail(edpConfig, agentConfig != null ? agentConfig.getVersatile() : null,
                 sharedChannel, sharedPassthroughBuffer));
-        rails.add(new AskUserTemplateRail(edpConfig));
+        rails.add(new AskUserTemplateRail(edpConfig, scripts));
         // Log Rail 负责观测日志。
         rails.add(new LogRail(edpConfig));
         // 思维链事件发射 Rail（todo/tool/think/final_answer 事件流），需要 deepAgent。

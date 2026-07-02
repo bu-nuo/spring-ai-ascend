@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.ScriptConstants;
+import com.huawei.ascend.edp.config.ScriptResolver;
+import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.config.ToolConstants;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
 import com.openjiuwen.core.session.interaction.InteractiveInput;
@@ -39,12 +41,20 @@ public class AskUserTemplateRail extends AgentRail {
     private final EdpConfig edpConfig;
 
     /**
+     * 话术配置，用于在 beforeToolCall 中预解析 ask_user 话术，
+     * 使 InterruptRequest.message 与 interrupt_start.content 一致。
+     */
+    private final SysScriptsConfig scripts;
+
+    /**
      * 构造 ask_user 话术增强 Rail。
      *
      * @param edpConfig EDP 专有配置，提供话术配置路径
+     * @param scripts  话术配置，用于预解析 ask_user 话术
      */
-    public AskUserTemplateRail(EdpConfig edpConfig) {
+    public AskUserTemplateRail(EdpConfig edpConfig, SysScriptsConfig scripts) {
         this.edpConfig = edpConfig;
+        this.scripts = scripts;
         setPriority(85);
     }
 
@@ -86,13 +96,25 @@ public class AskUserTemplateRail extends AgentRail {
         Map<String, Object> args = normalizeArgs(inputs.getToolArgs());
         String question = question(args);
         args.putIfAbsent("question", question);
-        inputs.setToolArgs(args);
-        LOGGER.info("AskUserTemplateRail: interrupting ask_user tool call, toolCallId={}, question='{}'",
-                toolCallId, question);
+
+        // 预解析话术：使 InterruptRequest.message 与 interrupt_start.content 一致，
+        // 避免框架 statusUpdate 携带 LLM 原始 question（与 conversation_end 时序冲突）。
+        String interruptMessage = question;
+        if (scripts != null) {
+            ScriptResolver.resolveAskUser(scripts, args, ctx.getExtra());
+            Object rt = ctx.getExtra().get(ScriptConstants.KEY_RESPONSE_TEMPLATE);
+            if (rt != null && !String.valueOf(rt).isBlank()) {
+                interruptMessage = String.valueOf(rt);
+            } else {
+                interruptMessage = ScriptResolver.interruptStart(scripts);
+            }
+        }
+        LOGGER.info("AskUserTemplateRail: interrupting ask_user tool call, toolCallId={}, message='{}'",
+                toolCallId, interruptMessage);
 
         InterruptRequest request = InterruptRequest.builder()
                 .interruptId(toolCallId)
-                .message(question)
+                .message(interruptMessage)
                 .context(Map.of("tool", TOOL_ASK_USER, "inputs", args))
                 .payloadSchema(Map.of(
                         "type", "object",

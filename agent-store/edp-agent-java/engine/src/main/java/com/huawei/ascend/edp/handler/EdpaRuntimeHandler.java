@@ -177,15 +177,7 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 ScenarioConfig scenarioConfig = ScenarioConfigLoader.loadScenarioConfig(scenarioConfigPath);
                 edpConfig.setActiveScenario(scenarioConfig);
 
-                // 加载 Todo 数据层（catalog entries + dynamic paths）
-                try {
-                    edpaTodolist = new EdpaTodolist(scenarioConfigPath);
-                    LOGGER.info("EdpaTodolist loaded: entries={}, dynamicPaths={}",
-                            edpaTodolist.getEntries().size(),
-                            edpaTodolist.getDynamicPaths().size());
-                } catch (Exception e) {
-                    LOGGER.warn("Failed to load EdpaTodolist from {}: {}", scenarioConfigPath, e.getMessage());
-                }
+                // Todo 数据层（catalog entries + dynamic paths）将在 governance actrule 加载后构造
 
                 // 用场景级 scope 覆盖框架级
                 if (scenarioConfig.getScope() != null) {
@@ -223,6 +215,22 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 governanceConfig.getPlanrule() != null ? "present" : "null",
                 governanceConfig.getActrule() != null ? "present" : "null",
                 governanceConfig.getScriptconfig() != null ? "present" : "null");
+
+        // 从 governance actrule 加载 Todo 数据层（替代式覆盖，框架默认无 todolist）
+        ActRuleConfig actrule = governanceConfig.getActrule();
+        if (actrule != null && actrule.getTodolistEntries() != null
+                && !actrule.getTodolistEntries().isEmpty()) {
+            try {
+                edpaTodolist = new EdpaTodolist(
+                        actrule.getTodolistEntries(),
+                        actrule.getTodolistDynamicPaths());
+                LOGGER.info("EdpaTodolist loaded from governance actrule: entries={}, dynamicPaths={}",
+                        edpaTodolist.getEntries().size(),
+                        edpaTodolist.getDynamicPaths().size());
+            } catch (Exception e) {
+                LOGGER.warn("Failed to load EdpaTodolist from governance actrule: {}", e.getMessage());
+            }
+        }
 
         // 第八步：拼接完整系统提示词（planrule + scenario 两部分）。
         // 第一部分：PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule())

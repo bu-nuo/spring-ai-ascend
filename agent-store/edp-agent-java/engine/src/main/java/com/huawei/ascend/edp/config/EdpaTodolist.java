@@ -67,13 +67,52 @@ public class EdpaTodolist {
     private final Map<String, TodoEntry> index;
 
     /**
+     * 从 ActRuleConfig POJO 构造（governance 数据源）。
+     *
+     * @param rawEntries  ActRuleConfig.TodolistEntry 列表
+     * @param rawPaths    ActRuleConfig.TodolistPath 列表
+     * @throws IllegalArgumentException 校验失败（catalog_id 重复、引用不存在、依赖图有环）
+     */
+    public EdpaTodolist(List<ActRuleConfig.TodolistEntry> rawEntries,
+                        List<ActRuleConfig.TodolistPath> rawPaths) {
+        Objects.requireNonNull(rawEntries, "todolist entries must not be null");
+        this.entries = new ArrayList<>(rawEntries.size());
+        this.dynamicPaths = new ArrayList<>();
+        for (ActRuleConfig.TodolistEntry e : rawEntries) {
+            this.entries.add(new TodoEntry(
+                    e.getCatalogId(),
+                    e.getContent(),
+                    e.getDescription(),
+                    e.getDependsOn(),
+                    e.getSkill()));
+        }
+        if (rawPaths != null) {
+            for (ActRuleConfig.TodolistPath p : rawPaths) {
+                this.dynamicPaths.add(new DynamicPath(
+                        p.getPathId(),
+                        p.getDescription(),
+                        p.getTrigger(),
+                        p.getSkipSteps(),
+                        p.getRedirect()));
+            }
+        }
+        this.index = buildIndex(this.entries);
+        validateReferences();
+        validateAcyclic();
+        LOGGER.info("EdpaTodolist loaded from governance actrule: entries={}, dynamicPaths={}",
+                entries.size(), dynamicPaths.size());
+    }
+
+    /**
      * 从 scenario-config.yaml 加载 todo 数据。
      *
      * <p>加载策略：读取 {@code todolist} 一级配置段（entries + dynamic_paths）。</p>
      *
      * @param yamlPath scenario-config.yaml 路径
      * @throws IllegalArgumentException 校验失败（catalog_id 重复、引用不存在、依赖图有环）
+     * @deprecated 使用 {@link #EdpaTodolist(List, List)} 从 governance actrule 加载
      */
+    @Deprecated
     @SuppressWarnings("unchecked")
     public EdpaTodolist(Path yamlPath) {
         Objects.requireNonNull(yamlPath, "scenario-config.yaml path must not be null");
@@ -90,16 +129,20 @@ public class EdpaTodolist {
                     "todolist section not found in scenario-config.yaml: " + yamlPath);
         }
 
-        this.index = new LinkedHashMap<>();
+        this.index = buildIndex(this.entries);
+        validateReferences();
+        validateAcyclic();
+    }
+
+    private static Map<String, TodoEntry> buildIndex(List<TodoEntry> entries) {
+        Map<String, TodoEntry> index = new LinkedHashMap<>();
         for (TodoEntry entry : entries) {
             if (index.put(entry.getCatalogId(), entry) != null) {
                 throw new IllegalArgumentException(
                         "Duplicate catalog_id in todolist.entries: " + entry.getCatalogId());
             }
         }
-
-        validateReferences();
-        validateAcyclic();
+        return index;
     }
 
     public List<TodoEntry> getEntries() {

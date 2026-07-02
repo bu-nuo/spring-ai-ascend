@@ -157,6 +157,15 @@ public class GovernanceConfig {
         if (scenarioActrule.getToolLimits() != null) {
             this.actrule.setToolLimits(scenarioActrule.getToolLimits());
         }
+
+        // todolistEntries: 替代式覆盖（场景提供完整定义，框架默认无值）
+        if (scenarioActrule.getTodolistEntries() != null) {
+            this.actrule.setTodolistEntries(scenarioActrule.getTodolistEntries());
+        }
+        // todolistDynamicPaths: 替代式覆盖
+        if (scenarioActrule.getTodolistDynamicPaths() != null) {
+            this.actrule.setTodolistDynamicPaths(scenarioActrule.getTodolistDynamicPaths());
+        }
     }
 
     /**

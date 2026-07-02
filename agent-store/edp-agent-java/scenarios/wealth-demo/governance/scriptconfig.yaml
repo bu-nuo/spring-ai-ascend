@@ -1,0 +1,15 @@
+scriptconfig:
+  think_chunk_scripts:
+    think_chunk_fixed_scripts:
+      # 按用户 query 关键词匹配的话术组（planning 阶段，继承式覆盖）
+      # 按声明顺序遍历，首个关键词命中即生效；全未命中降级到 default_scripts
+      query_patterns:
+        - keywords: ["推荐", "理财", "产品", "筛选"]
+          scripts:
+            - "正在搜索理财产品..."
+        - keywords: ["购买", "买", "下单", "确认"]
+          scripts:
+            - "正在确认购买信息..."
+        - keywords: ["余额", "查询", "账户", "转账"]
+          scripts:
+            - "正在查询账户信息..."

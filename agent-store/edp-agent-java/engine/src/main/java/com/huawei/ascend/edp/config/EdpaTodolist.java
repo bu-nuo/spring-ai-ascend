@@ -1,15 +1,8 @@
 package com.huawei.ascend.edp.config;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,13 +36,6 @@ import java.util.Set;
 public class EdpaTodolist {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(EdpaTodolist.class);
-
-    /**
-     * YAML 解析器，与 {@link ScenarioConfigLoader} 保持一致的 Jackson 配置。
-     */
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
 
     /**
      * 任务定义列表（保持配置顺序）。
@@ -103,37 +89,6 @@ public class EdpaTodolist {
                 entries.size(), dynamicPaths.size());
     }
 
-    /**
-     * 从 scenario-config.yaml 加载 todo 数据。
-     *
-     * <p>加载策略：读取 {@code todolist} 一级配置段（entries + dynamic_paths）。</p>
-     *
-     * @param yamlPath scenario-config.yaml 路径
-     * @throws IllegalArgumentException 校验失败（catalog_id 重复、引用不存在、依赖图有环）
-     * @deprecated 使用 {@link #EdpaTodolist(List, List)} 从 governance actrule 加载
-     */
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public EdpaTodolist(Path yamlPath) {
-        Objects.requireNonNull(yamlPath, "scenario-config.yaml path must not be null");
-        Map<String, Object> root = loadYaml(yamlPath);
-
-        Object todolistNode = root.get("todolist");
-        if (todolistNode instanceof Map<?, ?> todolistMap) {
-            this.entries = parseEntries(asMapList(todolistMap.get("entries")));
-            this.dynamicPaths = parseDynamicPaths(asMapList(todolistMap.get("dynamic_paths")));
-            LOGGER.info("EdpaTodolist loaded from todolist section: entries={}, dynamicPaths={}",
-                    entries.size(), dynamicPaths.size());
-        } else {
-            throw new IllegalArgumentException(
-                    "todolist section not found in scenario-config.yaml: " + yamlPath);
-        }
-
-        this.index = buildIndex(this.entries);
-        validateReferences();
-        validateAcyclic();
-    }
-
     private static Map<String, TodoEntry> buildIndex(List<TodoEntry> entries) {
         Map<String, TodoEntry> index = new LinkedHashMap<>();
         for (TodoEntry entry : entries) {
@@ -164,78 +119,6 @@ public class EdpaTodolist {
      */
     public boolean hasDynamicPaths() {
         return !dynamicPaths.isEmpty();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> loadYaml(Path yamlPath) {
-        try {
-            String content = Files.readString(yamlPath);
-            return YAML_MAPPER.readValue(content, Map.class);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to load scenario-config.yaml: " + yamlPath, e);
-        }
-    }
-
-    private static List<Map<String, Object>> asMapList(Object node) {
-        if (node instanceof List<?> list) {
-            List<Map<String, Object>> result = new ArrayList<>(list.size());
-            for (Object item : list) {
-                if (item instanceof Map<?, ?> map) {
-                    Map<String, Object> typed = new LinkedHashMap<>();
-                    map.forEach((k, v) -> typed.put(String.valueOf(k), v));
-                    result.add(typed);
-                }
-            }
-            return result;
-        }
-        return Collections.emptyList();
-    }
-
-    private static List<TodoEntry> parseEntries(List<Map<String, Object>> rawEntries) {
-        List<TodoEntry> result = new ArrayList<>(rawEntries.size());
-        for (Map<String, Object> raw : rawEntries) {
-            String catalogId = str(raw.get("catalog_id"));
-            if (catalogId == null || catalogId.isBlank()) {
-                throw new IllegalArgumentException("todolist.entries item missing catalog_id: " + raw);
-            }
-            result.add(new TodoEntry(
-                    catalogId,
-                    str(raw.get("content")),
-                    str(raw.get("description")),
-                    strList(raw.get("depends_on")),
-                    str(raw.get("skill"))));
-        }
-        return result;
-    }
-
-    private static List<DynamicPath> parseDynamicPaths(List<Map<String, Object>> rawPaths) {
-        List<DynamicPath> result = new ArrayList<>(rawPaths.size());
-        for (Map<String, Object> raw : rawPaths) {
-            result.add(new DynamicPath(
-                    str(raw.get("path_id")),
-                    str(raw.get("description")),
-                    str(raw.get("trigger")),
-                    strList(raw.get("skip_steps")),
-                    str(raw.get("redirect"))));
-        }
-        return result;
-    }
-
-    private static String str(Object value) {
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private static List<String> strList(Object value) {
-        if (value instanceof List<?> list) {
-            List<String> result = new ArrayList<>(list.size());
-            for (Object item : list) {
-                if (item != null) {
-                    result.add(String.valueOf(item));
-                }
-            }
-            return result;
-        }
-        return Collections.emptyList();
     }
 
     /**

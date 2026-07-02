@@ -3,8 +3,6 @@ package com.huawei.ascend.edp.config;
 import org.junit.jupiter.api.Test;
 import java.nio.file.Path;
 import java.nio.file.Files;
-import java.io.IOException;
-import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -135,37 +133,6 @@ class EdpConfigValidatorTest {
         } else {
             System.out.println("SKIP: wealth-demo scenario directory not found at " + scenarioHome);
         }
-    }
-
-    // ── skill_routing 校验 ──
-
-    @Test
-    void testValidateSkillRouting_NullScenario() {
-        Path skillsDir = Path.of("some/path");
-        assertDoesNotThrow(() -> EdpConfigValidator.validateSkillRouting(null, skillsDir), "null scenario 应跳过");
-    }
-
-    @Test
-    void testValidateSkillRouting_NullRouting() {
-        ScenarioConfig scenario = new ScenarioConfig();
-        scenario.setSkillRouting(null);
-        Path skillsDir = Path.of("some/path");
-        assertDoesNotThrow(() -> EdpConfigValidator.validateSkillRouting(scenario, skillsDir), "null routing 应跳过");
-    }
-
-    @Test
-    void testValidateSkillRouting_NonExistentSkill() {
-        ScenarioConfig scenario = new ScenarioConfig();
-        ScenarioSkillRouting routing = new ScenarioSkillRouting();
-        routing.setTrigger("test trigger");
-        routing.setSkill("nonexistent_skill");
-        routing.setPriority(1);
-        scenario.setSkillRouting(List.of(routing));
-
-        Path skillsDir = Path.of("/nonexistent/skills");
-        assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateSkillRouting(scenario, skillsDir),
-                "路由引用不存在的 Skill 应 fail-fast");
     }
 
     // ── Skill 目录校验 ──

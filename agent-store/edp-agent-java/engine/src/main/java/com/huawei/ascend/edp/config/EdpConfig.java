@@ -35,14 +35,8 @@ public class EdpConfig {
     /** 场景发现配置。原 AgentRule.md 的 scenario_discovery 节。 */
     private ScenarioDiscoveryConfig scenarioDiscovery;
 
-    /** 当前激活的场景配置。运行时加载，不在 YAML 中直接配置。 */
-    private ScenarioConfig activeScenario;
-
     public ScenarioDiscoveryConfig getScenarioDiscovery() { return scenarioDiscovery; }
     public void setScenarioDiscovery(ScenarioDiscoveryConfig scenarioDiscovery) { this.scenarioDiscovery = scenarioDiscovery; }
-
-    public ScenarioConfig getActiveScenario() { return activeScenario; }
-    public void setActiveScenario(ScenarioConfig activeScenario) { this.activeScenario = activeScenario; }
 
     public Scope getScope() { return scope; }
     public void setScope(Scope scope) { this.scope = scope; }

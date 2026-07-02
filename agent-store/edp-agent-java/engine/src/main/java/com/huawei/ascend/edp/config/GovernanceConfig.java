@@ -208,7 +208,27 @@ public class GovernanceConfig {
             defaultThinkChunk.setThinkChunkMode(scenarioThinkChunk.getThinkChunkMode());
         }
         if (scenarioThinkChunk.getThinkChunkFixedScripts() != null) {
-            defaultThinkChunk.setThinkChunkFixedScripts(scenarioThinkChunk.getThinkChunkFixedScripts());
+            if (defaultThinkChunk.getThinkChunkFixedScripts() == null) {
+                defaultThinkChunk.setThinkChunkFixedScripts(scenarioThinkChunk.getThinkChunkFixedScripts());
+            } else {
+                mergeFixedScripts(defaultThinkChunk.getThinkChunkFixedScripts(),
+                        scenarioThinkChunk.getThinkChunkFixedScripts());
+            }
         }
+    }
+
+    /**
+     * 合并固定话术帧配置（继承式覆盖各字段）。
+     */
+    private void mergeFixedScripts(ScriptConfig.ThinkChunkFixedScripts def,
+                                   ScriptConfig.ThinkChunkFixedScripts scenario) {
+        if (scenario.getEnabled() != null) { def.setEnabled(scenario.getEnabled()); }
+        if (scenario.getCharsPerFrame() != null) { def.setCharsPerFrame(scenario.getCharsPerFrame()); }
+        if (scenario.getTokensBetweenFrames() != null) { def.setTokensBetweenFrames(scenario.getTokensBetweenFrames()); }
+        if (scenario.getMinIntervalMs() != null) { def.setMinIntervalMs(scenario.getMinIntervalMs()); }
+        if (scenario.getDefaultScripts() != null) { def.setDefaultScripts(scenario.getDefaultScripts()); }
+        if (scenario.getExecutionScripts() != null) { def.setExecutionScripts(scenario.getExecutionScripts()); }
+        if (scenario.getResumeScripts() != null) { def.setResumeScripts(scenario.getResumeScripts()); }
+        if (scenario.getQueryPatterns() != null) { def.setQueryPatterns(scenario.getQueryPatterns()); }
     }
 }

@@ -40,6 +40,10 @@ scriptconfig:
       default_scripts:
         - "正在分析您的需求..."
 
+      # 按用户 query 关键词匹配的话术组（planning 阶段，继承式覆盖）
+      # 按声明顺序遍历，首个关键词命中即生效
+      query_patterns: []
+
       # ── executing 阶段话术（第2轮及后续思考轮次）────────────────────
       # 当 Agent 在执行工具后进入反思/决策思考时使用
       execution_scripts:

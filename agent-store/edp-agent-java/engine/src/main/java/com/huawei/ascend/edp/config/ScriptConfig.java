@@ -115,6 +115,8 @@ public class ScriptConfig {
         private List<String> defaultScripts;
         private List<String> executionScripts;
         private List<String> resumeScripts;
+        /** 按用户 query 关键词匹配的话术组列表（planning 阶段，继承式覆盖）。 */
+        private List<QueryPattern> queryPatterns;
 
         public Boolean getEnabled() { return enabled; }
         public void setEnabled(Boolean enabled) { this.enabled = enabled; }
@@ -136,6 +138,22 @@ public class ScriptConfig {
 
         public List<String> getResumeScripts() { return resumeScripts; }
         public void setResumeScripts(List<String> resumeScripts) { this.resumeScripts = resumeScripts; }
+
+        public List<QueryPattern> getQueryPatterns() { return queryPatterns; }
+        public void setQueryPatterns(List<QueryPattern> queryPatterns) { this.queryPatterns = queryPatterns; }
+
+        /**
+         * 按关键词匹配的话术组。planning 阶段遍历列表，首个命中的关键词组即生效。
+         */
+        public static class QueryPattern {
+            private List<String> keywords;
+            private List<String> scripts;
+
+            public List<String> getKeywords() { return keywords; }
+            public void setKeywords(List<String> keywords) { this.keywords = keywords; }
+            public List<String> getScripts() { return scripts; }
+            public void setScripts(List<String> scripts) { this.scripts = scripts; }
+        }
     }
 
     /**

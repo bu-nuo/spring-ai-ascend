@@ -13,14 +13,6 @@ scope:
     - "理财相关业务"
     - "信用卡相关业务"
 
-todolist_steps:
-  - step_id: 1
-    content: "贷款申请"
-    skill: "loan_apply_skill"
-  - step_id: 2
-    content: "审批流程"
-    skill: "loan_approval_skill"
-
 skill_routing: []
 
 architecture: null

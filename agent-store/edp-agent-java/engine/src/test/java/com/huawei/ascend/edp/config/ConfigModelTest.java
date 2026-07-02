@@ -34,18 +34,6 @@ class ConfigModelTest {
     }
 
     @Test
-    void testScenarioConfig_TodolistSteps() {
-        ScenarioConfig config = new ScenarioConfig();
-        EdpConfig.TodolistStep step = new EdpConfig.TodolistStep();
-        step.setStepId(1);
-        step.setContent("步骤1");
-        step.setSkill("skill1");
-        config.setTodolistSteps(List.of(step));
-        assertEquals(1, config.getTodolistSteps().size());
-        assertEquals(1, config.getTodolistSteps().get(0).getStepId());
-    }
-
-    @Test
     void testScenarioConfig_SkillRouting() {
         ScenarioConfig config = new ScenarioConfig();
         ScenarioSkillRouting routing = new ScenarioSkillRouting();
@@ -94,22 +82,7 @@ class ConfigModelTest {
         assertEquals("wealth-demo", discovery.getActiveScenario());
     }
 
-    // ── EdpConfig.TodolistStep ──
-
-    @Test
-    void testTodolistStep_Fields() {
-        EdpConfig.TodolistStep step = new EdpConfig.TodolistStep();
-        step.setStepId(2);
-        step.setContent("交互式理财筛选");
-        step.setSkill("interact_finance_rec_skill");
-        step.setDependsOn(List.of(1));
-        assertEquals(2, step.getStepId());
-        assertEquals("交互式理财筛选", step.getContent());
-        assertEquals("interact_finance_rec_skill", step.getSkill());
-        assertEquals(List.of(1), step.getDependsOn());
-    }
-
-    // ── EdpAgentConfig.EnvOverrides ──
+    // ── ScenarioDiscoveryConfig ──
 
     @Test
     void testEnvOverrides_Fields() {

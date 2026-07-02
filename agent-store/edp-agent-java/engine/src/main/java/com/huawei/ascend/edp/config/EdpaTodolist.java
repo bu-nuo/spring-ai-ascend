@@ -67,19 +67,9 @@ public class EdpaTodolist {
     private final Map<String, TodoEntry> index;
 
     /**
-     * 是否来自旧版 todolist_steps（向后兼容模式）。
-     */
-    private final boolean legacyMode;
-
-    /**
      * 从 scenario-config.yaml 加载 todo 数据。
      *
-     * <p>加载策略：</p>
-     * <ol>
-     *     <li>优先读取 {@code todolist} 一级配置段（entries + dynamic_paths）。</li>
-     *     <li>未配置 {@code todolist} 时，回退到旧版 {@code todolist_steps}，生成无 description 的 entries，
-     *         且 dynamic_paths 为空（旧版不支持动态路径）。</li>
-     * </ol>
+     * <p>加载策略：读取 {@code todolist} 一级配置段（entries + dynamic_paths）。</p>
      *
      * @param yamlPath scenario-config.yaml 路径
      * @throws IllegalArgumentException 校验失败（catalog_id 重复、引用不存在、依赖图有环）
@@ -93,16 +83,11 @@ public class EdpaTodolist {
         if (todolistNode instanceof Map<?, ?> todolistMap) {
             this.entries = parseEntries(asMapList(todolistMap.get("entries")));
             this.dynamicPaths = parseDynamicPaths(asMapList(todolistMap.get("dynamic_paths")));
-            this.legacyMode = false;
             LOGGER.info("EdpaTodolist loaded from todolist section: entries={}, dynamicPaths={}",
                     entries.size(), dynamicPaths.size());
         } else {
-            // 向后兼容：从旧版 todolist_steps 生成 entries。
-            this.entries = parseLegacySteps(asMapList(root.get("todolist_steps")));
-            this.dynamicPaths = Collections.emptyList();
-            this.legacyMode = true;
-            LOGGER.info("EdpaTodolist loaded from legacy todolist_steps: entries={}, dynamicPaths=0 (legacy mode)",
-                    entries.size());
+            throw new IllegalArgumentException(
+                    "todolist section not found in scenario-config.yaml: " + yamlPath);
         }
 
         this.index = new LinkedHashMap<>();
@@ -127,15 +112,6 @@ public class EdpaTodolist {
 
     public TodoEntry findByCatalogId(String catalogId) {
         return index.get(catalogId);
-    }
-
-    /**
-     * 是否处于旧版 todolist_steps 兼容模式。
-     *
-     * @return 旧版模式返回 true，使用新 todolist 段返回 false
-     */
-    public boolean isLegacyMode() {
-        return legacyMode;
     }
 
     /**
@@ -184,21 +160,6 @@ public class EdpaTodolist {
                     str(raw.get("content")),
                     str(raw.get("description")),
                     strList(raw.get("depends_on")),
-                    str(raw.get("skill"))));
-        }
-        return result;
-    }
-
-    private static List<TodoEntry> parseLegacySteps(List<Map<String, Object>> rawSteps) {
-        List<TodoEntry> result = new ArrayList<>(rawSteps.size());
-        for (Map<String, Object> raw : rawSteps) {
-            Object stepId = raw.get("step_id");
-            String catalogId = stepId != null ? "step_" + stepId : "step_" + (result.size() + 1);
-            result.add(new TodoEntry(
-                    catalogId,
-                    str(raw.get("content")),
-                    null,
-                    Collections.emptyList(),
                     str(raw.get("skill"))));
         }
         return result;

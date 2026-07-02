@@ -177,16 +177,11 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 ScenarioConfig scenarioConfig = ScenarioConfigLoader.loadScenarioConfig(scenarioConfigPath);
                 edpConfig.setActiveScenario(scenarioConfig);
 
-                // 用场景级 todolistSteps 覆盖框架级占位
-                if (scenarioConfig.getTodolistSteps() != null) {
-                    edpConfig.setTodolistSteps(scenarioConfig.getTodolistSteps());
-                }
-
                 // 加载 Todo 数据层（catalog entries + dynamic paths）
                 try {
                     edpaTodolist = new EdpaTodolist(scenarioConfigPath);
-                    LOGGER.info("EdpaTodolist loaded: legacyMode={}, entries={}, dynamicPaths={}",
-                            edpaTodolist.isLegacyMode(), edpaTodolist.getEntries().size(),
+                    LOGGER.info("EdpaTodolist loaded: entries={}, dynamicPaths={}",
+                            edpaTodolist.getEntries().size(),
                             edpaTodolist.getDynamicPaths().size());
                 } catch (Exception e) {
                     LOGGER.warn("Failed to load EdpaTodolist from {}: {}", scenarioConfigPath, e.getMessage());
@@ -205,9 +200,8 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                     edpConfig.setScope(frameworkScope);
                 }
 
-                LOGGER.info("Scenario loaded from scenarioHome: name={}, todolistSteps={}, skillRouting={}",
+                LOGGER.info("Scenario loaded from scenarioHome: name={}, skillRouting={}",
                         scenarioConfig.getName(),
-                        scenarioConfig.getTodolistSteps() != null ? scenarioConfig.getTodolistSteps().size() : 0,
                         scenarioConfig.getSkillRouting() != null ? scenarioConfig.getSkillRouting().size() : 0);
             } catch (Exception e) {
                 LOGGER.warn("Failed to load scenario config from scenarioHome {}: {}", scenarioHomePath, e.getMessage());
@@ -219,7 +213,6 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第六步：配置校验 fail-fast。
         EdpConfigValidator.validateModelConfig(springBootConfig.getModel());
         EdpConfigValidator.validateVersatileUrl(springBootConfig.getVersatile());
-        EdpConfigValidator.validateTodolistSteps(edpConfig);
         if (scenarioHomePath != null) {
             EdpConfigValidator.validateScenarioConfig(scenarioHomePath);
         }

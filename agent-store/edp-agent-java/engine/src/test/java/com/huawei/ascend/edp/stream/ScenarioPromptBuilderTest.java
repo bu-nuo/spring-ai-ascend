@@ -85,11 +85,7 @@ class ScenarioPromptBuilderTest {
         scope.setDenied(List.of("基金相关业务", "股票相关业务"));
         scenario.setScope(scope);
 
-        EdpConfig.TodolistStep step1 = new EdpConfig.TodolistStep();
-        step1.setStepId(1);
-        step1.setContent("推荐理财产品");
-        step1.setSkill("product_recommend_skill");
-        scenario.setTodolistSteps(List.of(step1));
+        // todolist_steps 已删除——新版 todolist.entries 完全替代，todolist 由 EdpaTodoRail 动态注入
 
         ScenarioSkillRouting routing = new ScenarioSkillRouting();
         routing.setTrigger("用户首次请求推荐理财产品");

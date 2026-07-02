@@ -111,39 +111,6 @@ class EdpConfigValidatorTest {
         }
     }
 
-    // ── todolist_steps 校验 ──
-
-    @Test
-    void testValidateTodolistSteps_Placeholder() {
-        EdpConfig config = new EdpConfig();
-        EdpConfig.TodolistStep step = new EdpConfig.TodolistStep();
-        step.setStepId(1);
-        step.setContent("占位步骤");
-        step.setSkill("_placeholder_");
-        config.setTodolistSteps(List.of(step));
-        assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateTodolistSteps(config),
-                "_placeholder_ skill 应 fail-fast");
-    }
-
-    @Test
-    void testValidateTodolistSteps_ValidSteps() {
-        EdpConfig config = new EdpConfig();
-        EdpConfig.TodolistStep step = new EdpConfig.TodolistStep();
-        step.setStepId(1);
-        step.setContent("推荐理财产品");
-        step.setSkill("product_recommend_skill");
-        config.setTodolistSteps(List.of(step));
-        assertDoesNotThrow(() -> EdpConfigValidator.validateTodolistSteps(config), "有效步骤应通过校验");
-    }
-
-    @Test
-    void testValidateTodolistSteps_NullSteps() {
-        EdpConfig config = new EdpConfig();
-        config.setTodolistSteps(null);
-        assertDoesNotThrow(() -> EdpConfigValidator.validateTodolistSteps(config), "null steps 应通过");
-    }
-
     // ── 场景配置校验 ──
 
     @Test

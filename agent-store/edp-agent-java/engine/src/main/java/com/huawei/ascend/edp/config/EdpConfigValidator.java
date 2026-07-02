@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 /**
  * 启动时配置校验器。
@@ -81,21 +80,6 @@ public class EdpConfigValidator {
     }
 
     /**
-     * 校验 todolist_steps 与 step_id 一致性。
-     */
-    public static void validateTodolistSteps(EdpConfig edpConfig) {
-        List<EdpConfig.TodolistStep> steps = edpConfig.getTodolistSteps();
-        if (steps != null) {
-            for (EdpConfig.TodolistStep step : steps) {
-                if ("_placeholder_".equals(step.getSkill())) {
-                    throw new IllegalStateException("TodolistSteps contains placeholder step. "
-                        + "Set EDP_AGENT_ACTIVE_SCENARIO or check scenario-config.yaml.");
-                }
-            }
-        }
-    }
-
-    /**
      * 校验场景配置（方案 B：从 scenarioHome 直接定位）。
      *
      * scenarioHome 已指向活动场景目录，直接在该目录下校验 scenario-config.yaml。
@@ -113,16 +97,8 @@ public class EdpConfigValidator {
         try {
             Path scenarioPath = ScenarioConfigLoader.findScenarioFile(scenarioHome);
             ScenarioConfig config = ScenarioConfigLoader.loadScenarioConfig(scenarioPath);
-            LOGGER.info("Scenario config validated: name={}, todolistSteps={}",
-                config.getName(),
-                config.getTodolistSteps() != null ? config.getTodolistSteps().size() : 0);
-            if (config.getTodolistSteps() != null) {
-                for (EdpConfig.TodolistStep step : config.getTodolistSteps()) {
-                    if ("_placeholder_".equals(step.getSkill())) {
-                        throw new IllegalStateException("Scenario todolist_steps contains placeholder. Check " + scenarioPath);
-                    }
-                }
-            }
+            LOGGER.info("Scenario config validated: name={}",
+                config.getName());
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load scenario config from scenarioHome: " + e.getMessage());
         }

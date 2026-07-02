@@ -46,8 +46,7 @@ class ScenarioConfigLoaderTest {
             assertNotNull(config, "加载结果不应为 null");
             // name 已迁移至 governance/planrule.yaml 的 scenarioName
             // scope 已迁移至 governance/planrule.yaml 的 scope
-            assertNotNull(config.getTodolistSteps(), "todolistSteps 不应为 null");
-            assertEquals(4, config.getTodolistSteps().size(), "理财购买应有 4 个步骤");
+            // todolist_steps 已删除——新版 todolist.entries 完全替代
             // skill_routing 已迁移至 governance/planrule.yaml 的 skill_routing
             // 编译错误: ScenarioConfigLoader 可能仍尝试解析该字段
             if (config.getSkillRouting() != null) {
@@ -68,8 +67,7 @@ class ScenarioConfigLoaderTest {
 
             assertNotNull(config, "加载结果不应为 null");
             assertEquals("杭研智贷通", config.getName(), "场景名称应为杭研智贷通");
-            assertNotNull(config.getTodolistSteps(), "todolistSteps 不应为 null");
-            assertEquals(2, config.getTodolistSteps().size(), "杭研智贷通应有 2 个步骤");
+            // todolist_steps 已删除——新版 todolist.entries 完全替代
             // skill_routing 为空列表
             assertNotNull(config.getSkillRouting(), "skillRouting 不应为 null");
             assertEquals(0, config.getSkillRouting().size(), "杭研智贷通 skill_routing 应为空");
@@ -99,16 +97,18 @@ class ScenarioConfigLoaderTest {
     }
 
     @Test
-    void testLoadScenarioConfig_TodolistStepDetails() throws IOException {
+    void testLoadScenarioConfig_SkillRouting() throws IOException {
         Path scenarioHome = Path.of("../scenarios/wealth-demo").toAbsolutePath().normalize();
         if (Files.exists(scenarioHome)) {
             Path configFile = ScenarioConfigLoader.findScenarioFile(scenarioHome);
             ScenarioConfig config = ScenarioConfigLoader.loadScenarioConfig(configFile);
 
-            EdpConfig.TodolistStep step1 = config.getTodolistSteps().get(0);
-            assertEquals(1, step1.getStepId(), "第一步 stepId 应为 1");
-            assertEquals("推荐理财产品", step1.getContent(), "第一步内容应为推荐理财产品");
-            assertEquals("product_recommend_skill", step1.getSkill(), "第一步 skill 应为 product_recommend_skill");
+            // todolist_steps 已删除——新版 todolist.entries 完全替代
+            // skill_routing 已迁移至 governance/planrule.yaml 的 skill_routing
+            // 编译错误: ScenarioConfigLoader 可能仍尝试解析该字段
+            if (config.getSkillRouting() != null) {
+                assertEquals(4, config.getSkillRouting().size(), "理财购买应有 4 条路由");
+            }
         } else {
             System.out.println("SKIP: wealth-demo scenario directory not found");
         }

@@ -1,7 +1,6 @@
 package com.huawei.ascend.edp.config;
 
 import java.util.List;
-
 /**
  * 场景配置模型（AgentRule 与 Skill 解耦的核心）。
  *
@@ -18,9 +17,6 @@ public class ScenarioConfig {
     /** 业务范围配置（结构化 allowed/denied）。 */
     private ScenarioScopeConfig scope;
 
-    /** Todolist 业务步骤目录（按场景差异化）。 */
-    private List<EdpConfig.TodolistStep> todolistSteps;
-
     /** Skill 路由规则（trigger→skill→priority）。 */
     private List<ScenarioSkillRouting> skillRouting;
 
@@ -35,9 +31,6 @@ public class ScenarioConfig {
 
     public ScenarioScopeConfig getScope() { return scope; }
     public void setScope(ScenarioScopeConfig scope) { this.scope = scope; }
-
-    public List<EdpConfig.TodolistStep> getTodolistSteps() { return todolistSteps; }
-    public void setTodolistSteps(List<EdpConfig.TodolistStep> todolistSteps) { this.todolistSteps = todolistSteps; }
 
     public List<ScenarioSkillRouting> getSkillRouting() { return skillRouting; }
     public void setSkillRouting(List<ScenarioSkillRouting> skillRouting) { this.skillRouting = skillRouting; }

@@ -2,6 +2,7 @@ package com.huawei.ascend.edp.config;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
@@ -27,6 +28,67 @@ class GovernanceConfigLoaderTest {
 
     @TempDir
     Path tempDir;
+
+    @Test
+    @DisplayName("测试4.1：场景名称和描述的继承式覆盖（空模板+增量）")
+    void testScenarioNameAndDescriptionMerge() throws Exception {
+        // 准备框架级配置（不含 scenarioName/scenarioDescription）
+        Path frameworkDir = tempDir.resolve("framework-no-scenario");
+        Files.createDirectories(frameworkDir);
+        createFrameworkConfig(frameworkDir);
+        
+        // 准备场景级配置（含 scenarioName/scenarioDescription）
+        Path scenarioDir = tempDir.resolve("scenario-with-name");
+        Files.createDirectories(scenarioDir);
+        createScenarioConfig(scenarioDir);
+        
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+        
+        // 验证：场景级 scenarioName 覆盖生效
+        assertNotNull(mergedConfig.getPlanrule(), "planrule配置应存在");
+        assertEquals("理财购买", mergedConfig.getPlanrule().getScenarioName(),
+                "场景级 scenarioName 应覆盖框架级（框架级为null）");
+        assertEquals("理财产品推荐、筛选、购买全流程", mergedConfig.getPlanrule().getScenarioDescription(),
+                "场景级 scenarioDescription 应覆盖框架级（框架级为null）");
+        
+        // 验证：框架默认 planrule 不含 scenarioName（确保非场景模式不受影响）
+        GovernanceConfig frameworkOnly = GovernanceConfigLoader.load(frameworkDir);
+        assertNull(frameworkOnly.getPlanrule().getScenarioName(),
+                "框架默认 planrule 应不含 scenarioName");
+        assertNull(frameworkOnly.getPlanrule().getScenarioDescription(),
+                "框架默认 planrule 应不含 scenarioDescription");
+    }
+
+    @Test
+    @DisplayName("测试4.2：场景只配名称不配描述时的继承式覆盖")
+    void testScenarioNameOnlyWithoutDescription() throws Exception {
+        // 准备框架级配置
+        Path frameworkDir = tempDir.resolve("framework-name-only");
+        Files.createDirectories(frameworkDir);
+        createFrameworkConfig(frameworkDir);
+        
+        // 准备场景级配置（仅 scenarioName，无 scenarioDescription）
+        Path scenarioDir = tempDir.resolve("scenario-name-only");
+        Files.createDirectories(scenarioDir);
+        String planruleYaml = "planrule:\n" +
+                "  scenario_name: 杭研智贷通\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleYaml);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+        
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+        
+        // 验证：scenarioName 生效，scenarioDescription 继承框架（null）
+        assertEquals("杭研智贷通", mergedConfig.getPlanrule().getScenarioName(),
+                "只配 scenarioName 时应覆盖生效");
+        assertNull(mergedConfig.getPlanrule().getScenarioDescription(),
+                "未配 scenarioDescription 时应为 null（继承框架默认）");
+        
+        // 验证：role 仍继承框架
+        assertEquals("通用动态规划智能体角色定位", mergedConfig.getPlanrule().getRole(),
+                "未覆盖的 role 应继承框架默认");
+    }
 
     @Test
     @DisplayName("测试1：从框架级governance目录加载配置")
@@ -222,6 +284,8 @@ class GovernanceConfigLoaderTest {
         // planrule.yaml（场景级覆盖）
         String planruleYaml = "planrule:\n" +
                 "  role: 理财场景智能助手\n" +
+                "  scenario_name: 理财购买\n" +
+                "  scenario_description: 理财产品推荐、筛选、购买全流程\n" +
                 "  scope:\n" +
                 "    allowed: '理财产品查询、理财产品推荐'\n" +
                 "    denied: '基金相关业务'\n" +
@@ -240,6 +304,17 @@ class GovernanceConfigLoaderTest {
                 "    tool_start: '正在为您查询理财产品...'\n" +
                 "  think_chunk_scripts:\n" +
                 "    think_chunk_mode: real_stream\n";
+        Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scriptconfigYaml);
+    }
+
+    /**
+     * 创建最简场景级配置（仅含 actrule 和 scriptconfig 空壳），
+     * 用于测试仅 planrule 有差异的场景。
+     */
+    private void createMinimalActruleAndScriptconfig(Path scenarioDir) throws Exception {
+        String actruleYaml = "actrule:\n";
+        Files.writeString(scenarioDir.resolve("actrule.yaml"), actruleYaml);
+        String scriptconfigYaml = "scriptconfig:\n";
         Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scriptconfigYaml);
     }
 }

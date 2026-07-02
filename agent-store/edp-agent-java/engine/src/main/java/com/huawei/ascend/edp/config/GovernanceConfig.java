@@ -87,6 +87,16 @@ public class GovernanceConfig {
             this.planrule.setDescription(scenarioPlanrule.getDescription());
         }
 
+        // scenarioName: 继承式覆盖（仅场景级配置，框架默认无值）
+        if (scenarioPlanrule.getScenarioName() != null) {
+            this.planrule.setScenarioName(scenarioPlanrule.getScenarioName());
+        }
+
+        // scenarioDescription: 继承式覆盖（仅场景级配置，框架默认无值）
+        if (scenarioPlanrule.getScenarioDescription() != null) {
+            this.planrule.setScenarioDescription(scenarioPlanrule.getScenarioDescription());
+        }
+
         // scope: 替代式覆盖（完全覆盖）
         if (scenarioPlanrule.getScope() != null) {
             this.planrule.setScope(scenarioPlanrule.getScope());

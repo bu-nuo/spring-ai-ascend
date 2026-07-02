@@ -64,7 +64,18 @@ public class PlanrulePromptBuilder {
             sb.append(planrule.getDescription()).append("\n\n");
         }
 
-        // 3. 业务范围（scope字段）
+        // 3. 场景上下文（scenarioName + scenarioDescription，仅场景模式有值）
+        if (isNotEmpty(planrule.getScenarioName())) {
+            sb.append("**当前场景**：").append(planrule.getScenarioName()).append("\n");
+        }
+        if (isNotEmpty(planrule.getScenarioDescription())) {
+            sb.append(planrule.getScenarioDescription()).append("\n\n");
+        } else if (isNotEmpty(planrule.getScenarioName())) {
+            // scenarioDescription 为空时也保证空行分隔
+            sb.append("\n");
+        }
+
+        // 4. 业务范围（scope字段）
         PlanRuleConfig.Scope scope = planrule.getScope();
         if (scope != null) {
             boolean hasScopeContent = false;
@@ -95,7 +106,7 @@ public class PlanrulePromptBuilder {
             }
         }
 
-        // 4. 补充提示词（supplementaryPrompt字段）- 直接拼接，内容灵活（可以是行为约束、使用说明、注意事项等）
+        // 5. 补充提示词（supplementaryPrompt字段）- 直接拼接，内容灵活（可以是行为约束、使用说明、注意事项等）
         if (isNotEmpty(planrule.getSupplementaryPrompt())) {
             sb.append(planrule.getSupplementaryPrompt()).append("\n");
         }

@@ -226,4 +226,133 @@ class PlanrulePromptBuilderTest {
         assertTrue(result.contains("**禁止的业务**：股票交易、期货交易"));
         assertTrue(result.contains("超出范围提示：正在学习中，暂不支持该业务"));
     }
+
+    /**
+     * 测试用例8：场景名称和描述拼接（完整的场景上下文）。
+     *
+     * <p>验证 scenarioName 和 scenarioDescription 按正确顺序拼接在 description 之后、scope 之前</p>
+     */
+    @Test
+    void testBuildSystemPromptWithScenarioNameAndDescription() {
+        PlanRuleConfig planrule = new PlanRuleConfig();
+        planrule.setRole("你的身份是通用动态规划智能体");
+        planrule.setDescription("负责任务规划、执行和结果总结。");
+        planrule.setScenarioName("理财购买");
+        planrule.setScenarioDescription("理财产品推荐、筛选、购买全流程");
+
+        PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
+        scope.setAllowed("理财产品推荐、筛选、购买");
+        scope.setDenied("基金相关业务");
+        planrule.setScope(scope);
+
+        String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
+
+        // 验证拼接顺序：role → description → scenarioName → scenarioDescription → scope
+        int rolePos = result.indexOf("# 你的身份是通用动态规划智能体");
+        int descPos = result.indexOf("负责任务规划、执行和结果总结。");
+        int scenarioNamePos = result.indexOf("**当前场景**：理财购买");
+        int scenarioDescPos = result.indexOf("理财产品推荐、筛选、购买全流程");
+        int scopePos = result.indexOf("**当前支持的业务**");
+
+        assertTrue(rolePos < descPos, "role 应在 description 之前");
+        assertTrue(descPos < scenarioNamePos, "description 应在 scenarioName 之前");
+        assertTrue(scenarioNamePos < scenarioDescPos, "scenarioName 应在 scenarioDescription 之前");
+        assertTrue(scenarioDescPos < scopePos, "scenarioDescription 应在 scope 之前");
+
+        // 验证内容
+        assertTrue(result.contains("**当前场景**：理财购买"));
+        assertTrue(result.contains("理财产品推荐、筛选、购买全流程"));
+    }
+
+    /**
+     * 测试用例9：仅场景名称无描述时的拼接。
+     *
+     * <p>验证只有 scenarioName 没有 scenarioDescription 时，格式仍然正确（有空行分隔）</p>
+     */
+    @Test
+    void testBuildSystemPromptWithScenarioNameOnly() {
+        PlanRuleConfig planrule = new PlanRuleConfig();
+        planrule.setScenarioName("杭研智贷通");
+        // scenarioDescription 为 null
+        PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
+        scope.setAllowed("贷款审批");
+        planrule.setScope(scope);
+
+        String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
+
+        // 验证：只输出场景名称，有空行与后面分隔
+        assertTrue(result.contains("**当前场景**：杭研智贷通"));
+        assertFalse(result.contains("全流程"), "scenarioDescription 为 null 时不应出现描述内容");
+
+        // 验证：scenarioName 在 scope.allowed 之前
+        int scenarioNamePos = result.indexOf("**当前场景**：杭研智贷通");
+        int scopePos = result.indexOf("**当前支持的业务**");
+        assertTrue(scenarioNamePos < scopePos, "scenarioName 应在 scope 之前");
+    }
+
+    /**
+     * 测试用例10：无场景名称和描述时的拼接（向后兼容）。
+     *
+     * <p>验证未设置 scenarioName/scenarioDescription 时，系统提示词不包含场景上下文行</p>
+     */
+    @Test
+    void testBuildSystemPromptWithoutScenarioContext() {
+        PlanRuleConfig planrule = new PlanRuleConfig();
+        planrule.setRole("通用动态规划智能体角色定位");
+        PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
+        scope.setAllowed("理财产品推荐");
+        planrule.setScope(scope);
+
+        String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
+
+        // 验证：不应包含场景上下文
+        assertFalse(result.contains("**当前场景**"), "无 scenarioName 时不应出现场景名");
+        // 验证：scope 正常输出
+        assertTrue(result.contains("**当前支持的业务**：理财产品推荐"));
+    }
+
+    /**
+     * 测试用例11：完整的 wealth-demo 场景提示词拼接（端到端）。
+     *
+     * <p>模拟 wealth-demo 场景合并后的 planrule 配置，验证完整拼接结果</p>
+     */
+    @Test
+    void testBuildSystemPromptForWealthDemoScenario() {
+        PlanRuleConfig planrule = new PlanRuleConfig();
+        planrule.setRole("你的身份是通用动态规划智能体");
+        planrule.setDescription("你的核心职责是负责任务规划、执行和结果总结。");
+        planrule.setScenarioName("理财购买");
+        planrule.setScenarioDescription("理财产品推荐、筛选、购买全流程");
+
+        PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
+        scope.setAllowed("理财产品推荐、筛选、购买、银行账户余额查询、银行账户间转账");
+        scope.setDenied("基金相关业务、股票相关业务、保险相关业务");
+        scope.setOutOfScopeMessage("当前请求暂不在可处理范围内。");
+        planrule.setScope(scope);
+
+        planrule.setSupplementaryPrompt("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。");
+
+        String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
+
+        // 验证完整拼接顺序（使用顺序断言，避免换行符精确匹配的脆弱性）
+        assertTrue(result.startsWith("# 你的身份是通用动态规划智能体"), "应以 role 开头");
+
+        int roleEnd = result.indexOf("你的核心职责");
+        int scenarioStart = result.indexOf("**当前场景**：理财购买");
+        int scopeStart = result.indexOf("**当前支持的业务**");
+        int suppStart = result.indexOf("你采用「规划—执行—观察—反思」");
+
+        assertTrue(roleEnd > 0, "应包含 description");
+        assertTrue(roleEnd < scenarioStart, "description 应在 scenarioName 之前");
+        assertTrue(scenarioStart < scopeStart, "scenarioName 应在 scope 之前");
+        assertTrue(scopeStart < suppStart, "scope 应在 supplementaryPrompt 之前");
+
+        // 验证关键内容存在
+        assertTrue(result.contains("**当前场景**：理财购买"));
+        assertTrue(result.contains("理财产品推荐、筛选、购买全流程"));
+        assertTrue(result.contains("理财产品推荐、筛选、购买、银行账户余额查询、银行账户间转账"));
+        assertTrue(result.contains("基金相关业务、股票相关业务、保险相关业务"));
+        assertTrue(result.contains("当前请求暂不在可处理范围内。"));
+        assertTrue(result.contains("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。"));
+    }
 }

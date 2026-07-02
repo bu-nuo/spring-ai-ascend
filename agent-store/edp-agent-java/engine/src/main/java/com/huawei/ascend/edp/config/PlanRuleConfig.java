@@ -20,6 +20,12 @@ public class PlanRuleConfig {
     /** Agent描述。 */
     private String description;
 
+    /** 场景名称（仅场景级配置，框架默认无值）。仅在 scenario 模式下注入系统提示词。 */
+    private String scenarioName;
+
+    /** 场景描述（仅场景级配置，框架默认无值）。仅在 scenario 模式下注入系统提示词。 */
+    private String scenarioDescription;
+
     /** Agent职责边界配置。 */
     private Scope scope;
 
@@ -31,6 +37,12 @@ public class PlanRuleConfig {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getScenarioName() { return scenarioName; }
+    public void setScenarioName(String scenarioName) { this.scenarioName = scenarioName; }
+
+    public String getScenarioDescription() { return scenarioDescription; }
+    public void setScenarioDescription(String scenarioDescription) { this.scenarioDescription = scenarioDescription; }
 
     public Scope getScope() { return scope; }
     public void setScope(Scope scope) { this.scope = scope; }

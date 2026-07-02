@@ -1,5 +1,5 @@
 # deploy/config/
 
-仅 **`edp-agent.yaml`** 为 Docker 部署专用（含 `adapter-versatile` 等容器服务名）。
-
-`edp-config.yaml`、`SysScriptsConfig.yaml` 由 Dockerfile 直接从 `engine/src/main/resources/` 复制，不在此目录维护。
+- **`edp-config.yaml`**：路径锚点（供 `EDPA_AGENT_CONFIG_PATH` 解析 `/app/config/governance/`），不含业务配置。
+- **model / versatile**：在 JAR 内 `application.yml` 的 `edpa.agent.*`，Docker 下通过环境变量覆盖。
+- **治理配置**：`engine/src/main/resources/governance/`（构建时 COPY 到 `/app/config/governance/`）。

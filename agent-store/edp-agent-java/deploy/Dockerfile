@@ -4,6 +4,8 @@
 #   ./mvnw clean install -DskipTests
 #   ./mvnw -pl agent-store/edp-agent-java -am package -DskipTests
 #
+# 或一键：bash agent-store/deploy/build.sh
+#
 # 构建命令（在仓库根目录）：
 #   docker build -t edp-agent-java:latest \
 #     -f agent-store/edp-agent-java/deploy/Dockerfile \
@@ -21,15 +23,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY engine/target/edp-agent-engine-*.jar app.jar
-COPY engine/src/main/resources/edp-config.yaml /app/config/edp-config.yaml
-COPY engine/src/main/resources/SysScriptsConfig.yaml /app/config/SysScriptsConfig.yaml
-COPY deploy/config/edp-agent.yaml /app/config/edp-agent.yaml
+COPY engine/src/main/resources/governance/ /app/config/governance/
+COPY deploy/config/edp-config.yaml /app/config/edp-config.yaml
 COPY scenarios/wealth-demo/ /app/scenarios/wealth-demo/
 
 ENV SERVER_PORT=8190
-ENV EDPA_AGENT_YAML_PATH=/app/config/edp-agent.yaml
 ENV EDPA_AGENT_CONFIG_PATH=/app/config/edp-config.yaml
-ENV EDPA_AGENT_SCRIPTS_PATH=/app/config/SysScriptsConfig.yaml
 ENV EDP_AGENT_SCENARIO_HOME=/app/scenarios/wealth-demo
 ENV PYTHONIOENCODING=utf-8
 

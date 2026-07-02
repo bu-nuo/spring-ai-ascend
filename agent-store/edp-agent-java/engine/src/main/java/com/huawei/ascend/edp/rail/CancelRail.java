@@ -47,7 +47,7 @@ public class CancelRail extends AgentRail {
     public CancelRail(EdpConfig edpConfig) {
         this.edpConfig = edpConfig;
         // 取消优先级较高，尽早拦截 cancel_task，避免继续执行其它业务逻辑。
-        setPriority(10);
+        setPriority(100);
     }
 
     /**

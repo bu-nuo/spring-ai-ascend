@@ -7,7 +7,23 @@ spring:
 
 edpa:
   agent:
-    yaml-path: ${EDPA_AGENT_YAML_PATH:src/main/resources/edp-agent.yaml}
     config-path: ${EDPA_AGENT_CONFIG_PATH:src/main/resources/edp-config.yaml}
     scripts-config-path: ${EDPA_AGENT_SCRIPTS_PATH:src/main/resources/SysScriptsConfig.yaml}
     scenario-home: ${EDP_AGENT_SCENARIO_HOME:../scenarios/wealth-demo}
+    model:
+      provider: ${EDP_AGENT_MODEL_PROVIDER:OpenAI}
+      name: ${EDP_AGENT_MODEL_NAME:deepseek-v4-pro}
+      base-url: ${EDP_AGENT_MODEL_BASE_URL:https://api.deepseek.com/v1}
+      api-key: ${EDP_AGENT_MODEL_API_KEY:sk-7f7fc853b65340b99dc1f790b7862c64}
+    versatile:
+      url: ${EDP_AGENT_VERSATILE_URL:http://localhost:30001/v1/0/agent-manager/workflows/{workflow_id}/conversations/{conversation_id}}
+      adapter-a2a-url: ${EDP_AGENT_VERSATILE_A2A_URL:http://localhost:8191/a2a}
+      timeout: ${EDP_AGENT_VERSATILE_TIMEOUT:30s}
+      url-variables:
+        workflow_id: mock_workflow
+      query-params:
+        type: controller
+        workspace_id: "10"
+      headers:
+        content-type: application/json
+        stream: "true"

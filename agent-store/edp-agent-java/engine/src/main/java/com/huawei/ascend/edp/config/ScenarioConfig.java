@@ -28,7 +28,7 @@ public class ScenarioConfig {
     private ScenarioArchitectureConfig architecture;
 
     /** 固定话术关键词匹配（场景级覆盖系统级）。 */
-    private List<EdpConfig.QueryPattern> queryPatterns;
+    private List<QueryPattern> queryPatterns;
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -48,6 +48,23 @@ public class ScenarioConfig {
     public ScenarioArchitectureConfig getArchitecture() { return architecture; }
     public void setArchitecture(ScenarioArchitectureConfig architecture) { this.architecture = architecture; }
 
-    public List<EdpConfig.QueryPattern> getQueryPatterns() { return queryPatterns; }
-    public void setQueryPatterns(List<EdpConfig.QueryPattern> queryPatterns) { this.queryPatterns = queryPatterns; }
+    public List<QueryPattern> getQueryPatterns() { return queryPatterns; }
+    public void setQueryPatterns(List<QueryPattern> queryPatterns) { this.queryPatterns = queryPatterns; }
+
+    /**
+     * 用户 query 关键词到脚本的匹配配置。
+     */
+    public static class QueryPattern {
+        /** 关键词列表。 */
+        private List<String> keywords;
+
+        /** 匹配关键词后使用的脚本列表。 */
+        private List<String> scripts;
+
+        public List<String> getKeywords() { return keywords; }
+        public void setKeywords(List<String> keywords) { this.keywords = keywords; }
+
+        public List<String> getScripts() { return scripts; }
+        public void setScripts(List<String> scripts) { this.scripts = scripts; }
+    }
 }

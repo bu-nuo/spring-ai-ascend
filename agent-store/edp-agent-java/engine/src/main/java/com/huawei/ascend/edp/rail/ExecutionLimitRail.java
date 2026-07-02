@@ -1,6 +1,6 @@
 package com.huawei.ascend.edp.rail;
 
-import com.huawei.ascend.edp.config.EdpConfig;
+import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.openjiuwen.core.singleagent.rail.AgentCallbackContext;
 import com.openjiuwen.core.singleagent.rail.AgentRail;
 import com.openjiuwen.core.singleagent.rail.ToolCallInputs;
@@ -16,13 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>文件作用：</p>
  * <ul>
  *     <li>在工具调用前统计每个工具的调用次数。</li>
- *     <li>读取 edp-config.yaml 中 limits.tasks 的单工具调用上限。</li>
+ *     <li>读取 actrule.yaml 中 tool_limits 的单工具调用上限。</li>
  *     <li>当工具调用次数超过限制时请求强制结束，避免工具循环失控。</li>
  * </ul>
  *
  * <p>对外提供的接口：</p>
  * <ul>
- *     <li>{@link #ExecutionLimitRail(EdpConfig)}：创建工具执行限制 Rail。</li>
+ *     <li>{@link #ExecutionLimitRail(ActRuleConfig)}：创建工具执行限制 Rail。</li>
  *     <li>{@link #beforeToolCall(AgentCallbackContext)}：工具调用前回调入口。</li>
  * </ul>
  */
@@ -31,9 +31,9 @@ public class ExecutionLimitRail extends AgentRail {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExecutionLimitRail.class);
 
     /**
-     * EDP 专有配置，提供 limits.tasks 工具调用次数上限。
+     * 行为治理配置，提供 tool_limits 工具调用次数上限。
      */
-    private final EdpConfig edpConfig;
+    private final ActRuleConfig actrule;
 
     /**
      * 工具调用次数计数器，外层 key 为 sessionId，内层 key 为工具名。
@@ -44,12 +44,12 @@ public class ExecutionLimitRail extends AgentRail {
     /**
      * 构造工具执行次数限制 Rail。
      *
-     * @param edpConfig EDP 专有配置
+     * @param actrule 行为治理配置
      */
-    public ExecutionLimitRail(EdpConfig edpConfig) {
-        this.edpConfig = edpConfig;
+    public ExecutionLimitRail(ActRuleConfig actrule) {
+        this.actrule = actrule;
         // 与迭代限制保持同一优先级，在工具真正执行前完成次数判断。
-        setPriority(40);
+        setPriority(70);
     }
 
     /**
@@ -86,9 +86,9 @@ public class ExecutionLimitRail extends AgentRail {
      * @return 工具调用上限；未配置时返回默认值 100
      */
     private int getToolLimit(String toolName) {
-        // 关键判断：优先读取 edp-config.yaml 中 limits.tasks.<toolName> 的配置值。
-        if (edpConfig != null && edpConfig.getLimits() != null && edpConfig.getLimits().getTasks() != null) {
-            Integer limit = edpConfig.getLimits().getTasks().get(toolName);
+        // 关键判断：优先读取 actrule.yaml 中 tool_limits.<toolName> 的配置值。
+        if (actrule != null && actrule.getToolLimits() != null) {
+            Integer limit = actrule.getToolLimits().get(toolName);
             if (limit != null) {
                 return limit;
             }

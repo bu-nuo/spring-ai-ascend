@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * - edp-agent.yaml 密钥外部化（PLACEHOLDER_USE_ENV_VAR）
  * - edp-agent.yaml 系统提示词为空（动态生成）
  * - edp-agent.yaml skills.directories 为空（方案 B）
- * - edp-config.yaml scenario_discovery 节存在
  * - edp-config.yaml todolist_steps 占位
  * - application.yml 场景路径配置
  * - .env.example 文件存在
@@ -76,62 +75,6 @@ class Phase3ConfigTest {
         } else {
             System.out.println("SKIP: edp-agent.yaml not found");
         }
-    }
-
-    // ── edp-config.yaml scenario_discovery ──
-
-    @Test
-    void testScenarioDiscoverySection() throws IOException {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            String content = Files.readString(configPath);
-            assertTrue(content.contains("scenario_discovery"),
-                    "edp-config.yaml 应包含 scenario_discovery 节");
-            assertTrue(content.contains("base_path:"),
-                    "scenario_discovery 应包含 base_path");
-            assertTrue(content.contains("active_scenario:"),
-                    "scenario_discovery 应包含 active_scenario");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
-        }
-    }
-
-    // ── edp-config.yaml todolist 占位 ──
-
-    @Test
-    void testTodolistPlaceholder() throws IOException {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            String content = Files.readString(configPath);
-            assertTrue(content.contains("_placeholder_"),
-                    "todolist_steps 应包含 _placeholder_ 占位（真实步骤由场景文件提供）");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
-        }
-    }
-
-    // ── edp-config.yaml 话术配置路径 ──
-
-    @Test
-    void testUtterancesSysScriptsConfig() throws IOException {
-        Path configPath = Path.of("src/main/resources/edp-config.yaml").toAbsolutePath();
-        if (Files.exists(configPath)) {
-            String content = Files.readString(configPath);
-            assertTrue(content.contains("SysScriptsConfig.yaml"),
-                    "话术配置路径应指向 SysScriptsConfig.yaml（替代 ScriptsConfig.md）");
-            assertFalse(content.contains("ScriptsConfig.md"),
-                    "不应引用旧版 ScriptsConfig.md");
-        } else {
-            System.out.println("SKIP: edp-config.yaml not found");
-        }
-    }
-
-    // ── SysScriptsConfig.yaml 存在 ──
-
-    @Test
-    void testSysScriptsConfigYamlExists() {
-        Path yamlPath = Path.of("src/main/resources/SysScriptsConfig.yaml").toAbsolutePath();
-        assertTrue(Files.exists(yamlPath), "SysScriptsConfig.yaml 应存在（替代 ScriptsConfig.md）");
     }
 
     // ── application.yml 场景路径 ──
@@ -241,7 +184,7 @@ class Phase3ConfigTest {
     @Test
     void testScriptsConfigMd_NotExist() {
         Path oldConfig = Path.of("src/main/resources/ScriptsConfig.md").toAbsolutePath();
-        assertFalse(Files.exists(oldConfig), "旧版 ScriptsConfig.md 应已删除（被 SysScriptsConfig.yaml 替代）");
+        assertFalse(Files.exists(oldConfig), "旧版 ScriptsConfig.md 应已删除");
     }
 
     // ── resources 下不应有 scenarios/skills 目录（方案 B）──

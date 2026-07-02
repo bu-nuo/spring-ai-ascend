@@ -43,7 +43,7 @@ public class AskUserTemplateRail extends AgentRail {
      */
     public AskUserTemplateRail(EdpConfig edpConfig) {
         this.edpConfig = edpConfig;
-        setPriority(50);
+        setPriority(85);
     }
 
     /**
@@ -147,12 +147,6 @@ public class AskUserTemplateRail extends AgentRail {
      * @return ask_user 默认追问话术
      */
     private String resolveUtterance() {
-        if (edpConfig != null && edpConfig.getUtterances() != null) {
-            String configPath = edpConfig.getUtterances().getConfigPath();
-            if (configPath != null) {
-                LOGGER.info("AskUserTemplateRail: loading utterances from {}", configPath);
-            }
-        }
         return "需要您确认以下信息";
     }
 

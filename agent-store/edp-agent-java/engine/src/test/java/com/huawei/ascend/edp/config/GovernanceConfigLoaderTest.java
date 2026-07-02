@@ -317,4 +317,73 @@ class GovernanceConfigLoaderTest {
         String scriptconfigYaml = "scriptconfig:\n";
         Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scriptconfigYaml);
     }
+
+    @Test
+    @DisplayName("测试7：skill_routing 的继承式覆盖（框架无值，场景有值）")
+    void testSkillRoutingMergeFromScenario() throws Exception {
+        // 准备框架级配置（不含 skill_routing）
+        Path frameworkDir = tempDir.resolve("framework-sr");
+        Files.createDirectories(frameworkDir);
+        createFrameworkConfig(frameworkDir);
+
+        // 准备场景级配置（含 skill_routing）
+        Path scenarioDir = tempDir.resolve("scenario-sr");
+        Files.createDirectories(scenarioDir);
+        String planruleWithSkillRouting = "planrule:\n" +
+                "  skill_routing:\n" +
+                "    - trigger: '用户首次请求推荐理财产品'\n" +
+                "      skill: 'product_recommend_skill'\n" +
+                "      priority: 1\n" +
+                "    - trigger: '用户从推荐结果中选择产品'\n" +
+                "      skill: 'product_select_skill'\n" +
+                "      priority: 2\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleWithSkillRouting);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：场景级 skill_routing 覆盖生效
+        assertNotNull(mergedConfig.getPlanrule(), "planrule配置应存在");
+        assertNotNull(mergedConfig.getPlanrule().getSkillRouting(), "skillRouting 应存在");
+        assertEquals(2, mergedConfig.getPlanrule().getSkillRouting().size(), "应有 2 条路由规则");
+
+        PlanRuleConfig.SkillRoute r1 = mergedConfig.getPlanrule().getSkillRouting().get(0);
+        assertEquals("用户首次请求推荐理财产品", r1.getTrigger());
+        assertEquals("product_recommend_skill", r1.getSkill());
+        assertEquals(1, r1.getPriority());
+
+        PlanRuleConfig.SkillRoute r2 = mergedConfig.getPlanrule().getSkillRouting().get(1);
+        assertEquals("用户从推荐结果中选择产品", r2.getTrigger());
+        assertEquals("product_select_skill", r2.getSkill());
+        assertEquals(2, r2.getPriority());
+
+        // 验证：框架级仍为 null（未受影响）
+        GovernanceConfig frameworkOnly = GovernanceConfigLoader.load(frameworkDir);
+        assertNull(frameworkOnly.getPlanrule().getSkillRouting(),
+                "框架默认 planrule 应不含 skillRouting");
+    }
+
+    @Test
+    @DisplayName("测试8：skill_routing 仅加载场景级配置（无框架）")
+    void testSkillRoutingScenarioOnly() throws Exception {
+        Path scenarioDir = tempDir.resolve("scenario-sr-only");
+        Files.createDirectories(scenarioDir);
+        String planruleYaml = "planrule:\n" +
+                "  skill_routing:\n" +
+                "    - trigger: '用户确认购买'\n" +
+                "      skill: 'fund_planning_skill'\n" +
+                "      priority: 1\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleYaml);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        Path frameworkDir = tempDir.resolve("non-existent-framework-sr");
+        GovernanceConfig config = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        assertNotNull(config.getPlanrule().getSkillRouting(), "仅场景配置时 skillRouting 应存在");
+        assertEquals(1, config.getPlanrule().getSkillRouting().size());
+        assertEquals("用户确认购买", config.getPlanrule().getSkillRouting().get(0).getTrigger());
+        assertEquals("fund_planning_skill", config.getPlanrule().getSkillRouting().get(0).getSkill());
+        assertEquals(1, config.getPlanrule().getSkillRouting().get(0).getPriority());
+    }
 }

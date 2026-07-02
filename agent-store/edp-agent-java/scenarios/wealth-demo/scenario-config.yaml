@@ -69,19 +69,7 @@ todolist:
       skip_steps: [fund_planning]
       redirect: "product_select → 结束（提示用户充值）"
 
-skill_routing:
-  - trigger: "用户首次请求推荐理财产品"
-    skill: "product_recommend_skill"
-    priority: 1
-  - trigger: "用户从推荐结果中选择产品"
-    skill: "product_select_skill"
-    priority: 2
-  - trigger: "用户确认购买或需要资金筹划"
-    skill: "fund_planning_skill"
-    priority: 2
-  - trigger: "用户请求换一批、追加筛选条件"
-    skill: "interact_finance_rec_skill"
-    priority: 1
+# skill_routing 已迁移至 governance/planrule.yaml 的 skill_routing
 
 architecture:
   type: "mcp_first"

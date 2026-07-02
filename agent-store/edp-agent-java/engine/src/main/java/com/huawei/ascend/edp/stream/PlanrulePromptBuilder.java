@@ -106,7 +106,18 @@ public class PlanrulePromptBuilder {
             }
         }
 
-        // 5. 补充提示词（supplementaryPrompt字段）- 直接拼接，内容灵活（可以是行为约束、使用说明、注意事项等）
+        // 5. Skill路由（skillRouting字段）- 场景级，框架默认无值
+        java.util.List<PlanRuleConfig.SkillRoute> skillRouting = planrule.getSkillRouting();
+        if (skillRouting != null && !skillRouting.isEmpty()) {
+            sb.append("\n**Skill 路由**：\n");
+            for (PlanRuleConfig.SkillRoute r : skillRouting) {
+                sb.append("- ").append(r.getTrigger())
+                  .append(" → ").append(r.getSkill())
+                  .append("（priority=").append(r.getPriority()).append("）\n");
+            }
+        }
+
+        // 6. 补充提示词（supplementaryPrompt字段）- 直接拼接，内容灵活（可以是行为约束、使用说明、注意事项等）
         if (isNotEmpty(planrule.getSupplementaryPrompt())) {
             sb.append(planrule.getSupplementaryPrompt()).append("\n");
         }

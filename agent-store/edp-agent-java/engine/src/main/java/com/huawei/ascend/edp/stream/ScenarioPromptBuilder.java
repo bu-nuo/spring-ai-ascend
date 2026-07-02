@@ -53,16 +53,7 @@ public class ScenarioPromptBuilder {
         // Todo 步骤已由 EdpaTodoRail.init() 通过 addPromptBuilderSection 动态注入，
         // 此处不再拼接，避免 LLM 看到重复的任务清单。
 
-        // Skill 路由
-        List<ScenarioSkillRouting> routing = scenario.getSkillRouting();
-        if (routing != null && !routing.isEmpty()) {
-            sb.append("\n**Skill 路由**：\n");
-            for (ScenarioSkillRouting r : routing) {
-                sb.append("- ").append(r.getTrigger())
-                  .append(" → ").append(r.getSkill())
-                  .append("（priority=").append(r.getPriority()).append("）\n");
-            }
-        }
+        // Skill 路由已迁移至 PlanrulePromptBuilder（从 governance/planrule.yaml 的 skill_routing 读取）
 
         // 工具调用架构
         ScenarioArchitectureConfig arch = scenario.getArchitecture();

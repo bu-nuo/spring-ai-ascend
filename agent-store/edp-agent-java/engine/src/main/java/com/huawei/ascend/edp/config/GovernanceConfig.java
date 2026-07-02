@@ -106,6 +106,11 @@ public class GovernanceConfig {
         if (scenarioPlanrule.getSupplementaryPrompt() != null) {
             this.planrule.setSupplementaryPrompt(scenarioPlanrule.getSupplementaryPrompt());
         }
+
+        // skillRouting: 继承式覆盖（框架默认无值，场景配置即最终值）
+        if (scenarioPlanrule.getSkillRouting() != null) {
+            this.planrule.setSkillRouting(scenarioPlanrule.getSkillRouting());
+        }
     }
 
     /**

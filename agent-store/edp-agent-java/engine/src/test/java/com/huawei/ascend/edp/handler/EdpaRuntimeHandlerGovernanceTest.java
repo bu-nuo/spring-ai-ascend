@@ -55,20 +55,16 @@ class EdpaRuntimeHandlerGovernanceTest {
         // 使用反射调用buildFullSystemPrompt()方法（private方法，已移除agentConfig参数）
         String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
 
-        // 验证拼接结果包含两部分
-        // 第一部分：planrule四字段（role, description, scope, supplementaryPrompt）
+        // 验证拼接结果（ScenarioPromptBuilder 已清空，仅 planruleFragment 生效）
         assertTrue(systemPrompt.contains("# 通用动态规划智能体角色定位"));
         assertTrue(systemPrompt.contains("负责任务规划、执行和结果总结的智能助手"));
         assertTrue(systemPrompt.contains("超出范围提示：尚在学习中，暂不支持该业务"));
         assertTrue(systemPrompt.contains("## 二、行为约束"));
         assertTrue(systemPrompt.contains("暂停当前任务，重新规划"));
 
-        // 第二部分：ScenarioPromptBuilder
-        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
-        assertTrue(systemPrompt.contains("理财推荐场景"));
-
-        // 验证两部分正确拼接（中间有"\n\n"分隔）
-        assertTrue(systemPrompt.contains("\n\n**当前场景**"));
+        // ScenarioPromptBuilder 已清空，不再输出场景名/描述
+        assertFalse(systemPrompt.contains("**当前场景**"));
+        assertFalse(systemPrompt.contains("\n\n**当前场景**"));
     }
 
     /**
@@ -88,9 +84,8 @@ class EdpaRuntimeHandlerGovernanceTest {
         // 调用buildFullSystemPrompt()（GovernanceConfig为null）
         String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
 
-        // 验证只返回 ScenarioPromptBuilder.buildSystemPrompt(scenario) 的结果
-        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
-        assertFalse(systemPrompt.contains("# 通用动态规划智能体"));  // planrule缺失，不应包含第一部分
+        // ScenarioPromptBuilder 已清空，GovernanceConfig 为 null → 返回空字符串
+        assertTrue(systemPrompt.isEmpty(), "GovernanceConfig 为 null 且 ScenarioPromptBuilder 已清空，应返回空字符串");
     }
 
     /**
@@ -141,11 +136,11 @@ class EdpaRuntimeHandlerGovernanceTest {
         // 直接调用（不再需要 EdpAgentConfig 参数）
         String systemPrompt = invokeBuildFullSystemPrompt(governance, scenario);
 
-        // 验证返回的是 governance + scenario 拼接结果，而非任何 agentConfig 内容
+        // 验证返回的是 governance 拼接结果（ScenarioPromptBuilder 已清空，不再拼接场景部分）
         assertTrue(systemPrompt.contains("# 理财推荐智能体"));
         assertTrue(systemPrompt.contains("理财产品推荐智能助手"));
-        assertTrue(systemPrompt.contains("**当前场景**：wealth-demo"));
-        assertTrue(systemPrompt.contains("\n\n**当前场景**"));  // 两部分正确拼接
+        // ScenarioPromptBuilder 已清空，不再输出场景名
+        assertFalse(systemPrompt.contains("**当前场景**"));
         // 验证不再依赖 agentConfig.prompt.system
         assertFalse(systemPrompt.contains("向后兼容"));
         assertFalse(systemPrompt.contains("agentConfig"));

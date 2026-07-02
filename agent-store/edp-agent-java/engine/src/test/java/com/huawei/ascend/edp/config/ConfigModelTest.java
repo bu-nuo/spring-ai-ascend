@@ -5,7 +5,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 配置模型类单元测试（ScenarioConfig, ScenarioScopeConfig, ScenarioSkillRouting, ScenarioArchitectureConfig）。
+ * 配置模型类单元测试（ScenarioConfig, ScenarioScopeConfig, ScenarioSkillRouting）。
  *
  * 验证阶段 2 架构包结构生产化中的场景解耦模型类。
  */
@@ -57,15 +57,7 @@ class ConfigModelTest {
         assertEquals("product_recommend_skill", config.getSkillRouting().get(0).getSkill());
     }
 
-    @Test
-    void testScenarioConfig_Architecture() {
-        ScenarioConfig config = new ScenarioConfig();
-        ScenarioArchitectureConfig arch = new ScenarioArchitectureConfig();
-        arch.setType("mcp_first");
-        arch.setDescription("MCP 先行架构");
-        config.setArchitecture(arch);
-        assertEquals("mcp_first", config.getArchitecture().getType());
-    }
+    // architecture 已删除——MCP 先行架构已作为框架默认配置放入 engine/src/main/resources/governance/planrule.yaml 的 supplementary_prompt
 
     // ── ScenarioScopeConfig ──
 
@@ -89,36 +81,7 @@ class ConfigModelTest {
         assertEquals(3, routing.getPriority());
     }
 
-    // ── ScenarioArchitectureConfig ──
-
-    @Test
-    void testScenarioArchitectureConfig_Fields() {
-        ScenarioArchitectureConfig arch = new ScenarioArchitectureConfig();
-        arch.setType("mcp_first");
-        arch.setDescription("描述");
-        assertNotNull(arch.getType());
-    }
-
-    @Test
-    void testScenarioArchitectureConfig_Steps() {
-        ScenarioArchitectureConfig arch = new ScenarioArchitectureConfig();
-        ScenarioArchitectureConfig.ArchitectureStep step = new ScenarioArchitectureConfig.ArchitectureStep();
-        step.setStepId(1);
-        step.setDescription("第一步");
-        step.setTool("call_mcp");
-        arch.setSteps(List.of(step));
-        assertEquals(1, arch.getSteps().size());
-        assertEquals("call_mcp", arch.getSteps().get(0).getTool());
-    }
-
-    @Test
-    void testScenarioArchitectureConfig_ApplicableSkills() {
-        ScenarioArchitectureConfig arch = new ScenarioArchitectureConfig();
-        arch.setApplicableSkills(List.of("interact_finance_rec_skill"));
-        arch.setNotApplicableSkills(List.of("product_recommend_skill"));
-        assertEquals(1, arch.getApplicableSkills().size());
-        assertEquals(1, arch.getNotApplicableSkills().size());
-    }
+    // ScenarioArchitectureConfig 已删除——architecture 字段不再由场景配置
 
     // ── ScenarioDiscoveryConfig ──
 

@@ -8,15 +8,16 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * ScenarioPromptBuilder 场景提示词拼接单元测试。
  *
- * 验证阶段 2 架构包结构生产化中的场景级提示词动态拼接。
+ * 注意：ScenarioPromptBuilder 已清空（所有字段已迁移至 governance 的 planrule.yaml），
+ * buildSystemPrompt 无论输入均返回空字符串。此类待全局清理时一并删除。
  */
 class ScenarioPromptBuilderTest {
 
     @Test
     void testBuildSystemPrompt_NullScenario() {
         String prompt = ScenarioPromptBuilder.buildSystemPrompt(null);
-        assertNotNull(prompt, "null scenario 应返回基础提示词");
-        assertTrue(prompt.contains("六、技能与工具补充"), "基础提示词应包含工具章节");
+        assertNotNull(prompt, "null scenario 应返回空字符串");
+        assertTrue(prompt.isEmpty(), "所有字段已迁移，应返回空字符串");
     }
 
     @Test
@@ -24,64 +25,54 @@ class ScenarioPromptBuilderTest {
         ScenarioConfig scenario = createWealthDemoScenario();
         String prompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
         assertNotNull(prompt);
-        assertTrue(prompt.contains("理财购买"), "提示词应包含场景名称");
-        assertTrue(prompt.contains("七、场景规则"), "提示词应包含场景规则章节");
+        assertTrue(prompt.isEmpty(), "所有字段已迁移至 governance，应返回空字符串");
     }
 
     @Test
     void testBuildSystemPrompt_Scope() {
+        // scope 已迁移至 PlanrulePromptBuilder
         ScenarioConfig scenario = createWealthDemoScenario();
         String prompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-        assertTrue(prompt.contains("允许业务"), "提示词应包含允许业务");
-        assertTrue(prompt.contains("禁止业务"), "提示词应包含禁止业务");
-        assertTrue(prompt.contains("理财产品推荐"), "提示词应包含具体允许业务内容");
+        assertTrue(prompt.isEmpty(), "scope 已迁移，应返回空字符串");
     }
 
     @Test
     void testBuildSystemPrompt_TodolistSteps() {
+        // todolist 已由 EdpaTodoRail 动态注入
         ScenarioConfig scenario = createWealthDemoScenario();
         String prompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-        assertTrue(prompt.contains("7.2 任务规划"), "提示词应包含任务规划章节");
-        assertTrue(prompt.contains("step_id=1"), "提示词应包含步骤 ID");
-        assertTrue(prompt.contains("product_recommend_skill"), "提示词应包含 Skill 名称");
+        assertTrue(prompt.isEmpty(), "todolist 已由 Rail 注入，应返回空字符串");
     }
 
     @Test
     void testBuildSystemPrompt_SkillRouting() {
+        // skill_routing 已迁移至 PlanrulePromptBuilder
         ScenarioConfig scenario = createWealthDemoScenario();
         String prompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-        assertTrue(prompt.contains("7.3 Skill 路由"), "提示词应包含 Skill 路由章节");
-        assertTrue(prompt.contains("priority=1"), "提示词应包含路由优先级");
+        assertTrue(prompt.isEmpty(), "skill_routing 已迁移，应返回空字符串");
     }
 
-    @Test
-    void testBuildSystemPrompt_Architecture() {
-        ScenarioConfig scenario = createWealthDemoScenario();
-        String prompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-        assertTrue(prompt.contains("7.4 工具调用架构"), "提示词应包含工具调用架构章节");
-        assertTrue(prompt.contains("mcp_first"), "提示词应包含架构类型");
-    }
+    // architecture 已删除——MCP 先行架构已作为框架默认配置放入 engine/src/main/resources/governance/planrule.yaml 的 supplementary_prompt
 
     @Test
     void testBuildSystemPrompt_ScopeOnlyAllowed() {
+        // scope 已迁移至 PlanrulePromptBuilder
         ScenarioConfig scenario = new ScenarioConfig();
         scenario.setName("简单场景");
         ScenarioScopeConfig scope = new ScenarioScopeConfig();
         scope.setAllowed(List.of("业务A"));
         scenario.setScope(scope);
-
         String prompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-        assertTrue(prompt.contains("允许业务"), "只有 allowed 也应显示");
-        assertFalse(prompt.contains("禁止业务"), "无 denied 不应显示禁止业务");
+        assertTrue(prompt.isEmpty(), "所有字段已迁移至 governance，应返回空字符串");
     }
 
     @Test
     void testBuildSystemPrompt_NoScope() {
+        // scope 已迁移至 PlanrulePromptBuilder
         ScenarioConfig scenario = new ScenarioConfig();
         scenario.setName("无范围场景");
-
         String prompt = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-        assertFalse(prompt.contains("允许业务"), "无 scope 不应显示范围");
+        assertTrue(prompt.isEmpty(), "所有字段已迁移至 governance，应返回空字符串");
     }
 
     private ScenarioConfig createWealthDemoScenario() {
@@ -106,10 +97,7 @@ class ScenarioPromptBuilderTest {
         routing.setPriority(1);
         scenario.setSkillRouting(List.of(routing));
 
-        ScenarioArchitectureConfig arch = new ScenarioArchitectureConfig();
-        arch.setType("mcp_first");
-        arch.setDescription("本场景采用 MCP 先行架构");
-        scenario.setArchitecture(arch);
+        // architecture 已删除——MCP 先行架构已作为框架默认配置放入 framework planrule.yaml
 
         return scenario;
     }

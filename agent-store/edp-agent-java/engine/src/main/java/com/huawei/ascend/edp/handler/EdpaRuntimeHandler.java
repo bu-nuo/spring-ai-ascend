@@ -564,34 +564,26 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      */
     private String buildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario) {
 
-        // 第一部分：planrule四字段拼接（替代Python版markdown_body）
+        // planrule系统提示词（从governance/planrule.yaml构建）
         String planruleFragment = "";
         if (governance != null && governance.getPlanrule() != null) {
             planruleFragment = PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule());
             LOGGER.info("Planrule fragment built: length={}", planruleFragment.length());
         }
 
-        // 第二部分：工具说明 + 场景规则（对应Python版build_system_prompt()）
+        // ScenarioPromptBuilder 已清空（所有字段已迁移至 governance，待最终删除）
         String scenarioFragment = "";
         if (scenario != null) {
             scenarioFragment = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-            LOGGER.info("Scenario fragment built: length={}", scenarioFragment.length());
-        } else {
-            // 如果scenario为null，场景提示词部分为空
-            scenarioFragment = "";
+            LOGGER.debug("Scenario fragment built: length={}", scenarioFragment.length());
         }
 
-        // 拼接两部分（对应Python版拼接方式）
+        // 拼接（ScenarioPromptBuilder 当前返回空字符串，实际仅 planruleFragment 生效）
         String fullSystemPrompt;
-        if (planruleFragment.isEmpty()) {
-            fullSystemPrompt = scenarioFragment;  // 如果planrule为空，只返回第二部分
-            LOGGER.info("Full system prompt: only scenario fragment (planrule empty)");
-        } else if (scenarioFragment.isEmpty()) {
-            fullSystemPrompt = planruleFragment;  // 如果scenario为空，只返回第一部分
-            LOGGER.info("Full system prompt: only planrule fragment (scenario empty)");
+        if (scenarioFragment.isEmpty()) {
+            fullSystemPrompt = planruleFragment;
         } else {
-            fullSystemPrompt = planruleFragment + "\n\n" + scenarioFragment;  // 拼接两部分，中间空行分隔
-            LOGGER.info("Full system prompt: planrule + scenario fragments concatenated");
+            fullSystemPrompt = planruleFragment + "\n\n" + scenarioFragment;
         }
 
         LOGGER.info("Full system prompt built: total length={}", fullSystemPrompt.length());

@@ -24,9 +24,6 @@ public class ScenarioConfig {
     /** Skill 路由规则（trigger→skill→priority）。 */
     private List<ScenarioSkillRouting> skillRouting;
 
-    /** 工具调用架构配置（mcp_first 等）。 */
-    private ScenarioArchitectureConfig architecture;
-
     /** 固定话术关键词匹配（场景级覆盖系统级）。 */
     private List<QueryPattern> queryPatterns;
 
@@ -44,9 +41,6 @@ public class ScenarioConfig {
 
     public List<ScenarioSkillRouting> getSkillRouting() { return skillRouting; }
     public void setSkillRouting(List<ScenarioSkillRouting> skillRouting) { this.skillRouting = skillRouting; }
-
-    public ScenarioArchitectureConfig getArchitecture() { return architecture; }
-    public void setArchitecture(ScenarioArchitectureConfig architecture) { this.architecture = architecture; }
 
     public List<QueryPattern> getQueryPatterns() { return queryPatterns; }
     public void setQueryPatterns(List<QueryPattern> queryPatterns) { this.queryPatterns = queryPatterns; }

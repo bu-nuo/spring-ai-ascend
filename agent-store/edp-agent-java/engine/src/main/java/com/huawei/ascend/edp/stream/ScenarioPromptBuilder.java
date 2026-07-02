@@ -3,7 +3,6 @@ package com.huawei.ascend.edp.stream;
 import com.huawei.ascend.edp.config.ScenarioConfig;
 import com.huawei.ascend.edp.config.ScenarioSkillRouting;
 import com.huawei.ascend.edp.config.ScenarioScopeConfig;
-import com.huawei.ascend.edp.config.ScenarioArchitectureConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 
 import java.util.List;
@@ -54,16 +53,7 @@ public class ScenarioPromptBuilder {
         // 此处不再拼接，避免 LLM 看到重复的任务清单。
 
         // Skill 路由已迁移至 PlanrulePromptBuilder（从 governance/planrule.yaml 的 skill_routing 读取）
-
-        // 工具调用架构
-        ScenarioArchitectureConfig arch = scenario.getArchitecture();
-        if (arch != null && arch.getType() != null) {
-            sb.append("\n**工具调用架构**：\n");
-            sb.append("类型：").append(arch.getType()).append("\n");
-            if (arch.getDescription() != null) {
-                sb.append(arch.getDescription()).append("\n");
-            }
-        }
+        // 工具调用架构已迁移至框架默认 supplementary_prompt（MCP 先行架构）
 
         return sb.toString();
     }

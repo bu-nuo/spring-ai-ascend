@@ -70,26 +70,7 @@ todolist:
       redirect: "product_select → 结束（提示用户充值）"
 
 # skill_routing 已迁移至 governance/planrule.yaml 的 skill_routing
-
-architecture:
-  type: "mcp_first"
-  description: "本场景采用 MCP 先行架构，先获取产品数据再调用工作流"
-  steps:
-    - step_id: 1
-      description: "调用 call_mcp 获取 MCP 产品推荐数据"
-      tool: "call_mcp"
-    - step_id: 2
-      description: "调用 call_versatile 获取低码平台银行信息"
-      tool: "call_versatile"
-    - step_id: 3
-      description: "沙箱归一化脚本合并数据"
-      tool: "execute_cmd"
-  applicable_skills:
-    - "interact_finance_rec_skill"
-  not_applicable_skills:
-    - "product_recommend_skill"
-    - "product_select_skill"
-    - "fund_planning_skill"
+# architecture 已删除——MCP 先行架构已作为框架默认配置放入 engine/src/main/resources/governance/planrule.yaml 的 supplementary_prompt
 
 query_patterns:
   - keywords: ["推荐", "理财", "产品", "筛选"]

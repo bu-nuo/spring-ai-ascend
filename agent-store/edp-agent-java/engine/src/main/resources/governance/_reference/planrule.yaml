@@ -97,11 +97,11 @@ planrule:
   # 补充提示词（行为约束规则）
   # ============================================================
 
-  # @用途: 补充提示词（ReAct 循环协议、工具调用规约、行为约束等），直接注入系统提示词末尾
-  # @策略: 替代式覆盖
+  # @用途: 补充提示词（ReAct 循环协议、工具调用规约、行为约束、MCP 先行架构等），直接注入系统提示词末尾
+  # @策略: 替代式覆盖（场景值完全替换框架值。若只需保留框架全部内容，不配置此字段即可）
   # @类型: string（支持多行）
   # @约束: 任意字符串
-  # @默认: 见 framework governance/planrule.yaml（约 62 行 ReAct 协议）
+  # @默认: 见 framework governance/planrule.yaml（约 95 行，含 ReAct 协议 + MCP 先行架构）
   supplementary_prompt: |
     你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。
-    （详见 framework governance/planrule.yaml 完整内容）
+    （详见 framework governance/planrule.yaml 完整内容；末尾包含 MCP 先行架构说明）

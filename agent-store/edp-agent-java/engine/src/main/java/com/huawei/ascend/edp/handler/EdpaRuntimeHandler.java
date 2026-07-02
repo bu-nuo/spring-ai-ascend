@@ -13,6 +13,7 @@ import com.huawei.ascend.edp.config.GovernanceConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioConfig;
 import com.huawei.ascend.edp.config.ScenarioConfigLoader;
 import com.huawei.ascend.edp.config.ScenarioScopeConfig;
+import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
 import com.huawei.ascend.edp.enhancer.EdpaEventStreamAdapter;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
@@ -248,12 +249,30 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第十一步：注册 Skill 目录（从 scenarioHomePath/skills）。
         registerSkills(skillsDir);
 
-        // 第十二步：注册 EDPAgent 内置业务工具和业务 Rails（按 actrule.allowed_tools 配置驱动）。
+        // 第十二步：加载框架级、场景级、Skill 级话术（D3 修复：话术加载前移到 enhance 之前）。
+        SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
+        // 框架级话术（SysScriptsConfig.yaml 已迁移至 governance/scriptconfig.yaml，此处兼容旧路径）。
+        Path frameworkScriptsPath = yamlDir.resolve("SysScriptsConfig.yaml").toAbsolutePath().normalize();
+        sysScriptsConfig.load(frameworkScriptsPath.toString());
+        if (scenarioHomePath != null) {
+            Path scenarioScriptsConfigPath = scenarioHomePath.resolve("ScriptsConfig.yaml").toAbsolutePath().normalize();
+            sysScriptsConfig.load(scenarioScriptsConfigPath.toString());
+        }
+        if (skillsDir != null && Files.exists(skillsDir)) {
+            Map<String, String> skillScripts = SkillScriptsCollector.collectSkillScripts(skillsDir);
+            sysScriptsConfig.mergeSkillScripts(skillScripts);
+            LOGGER.info("Skill scripts collected: {} entries from {}", skillScripts.size(), skillsDir);
+        } else {
+            LOGGER.info("No skills directory found; skill scripts collection skipped.");
+        }
+        LOGGER.info("SysScriptsConfig merged templates: {}", sysScriptsConfig.getTemplates().size());
+
+        // 第十三步：注册 EDPAgent 内置业务工具和业务 Rails（配置驱动工具注册 + 思维链事件 + 话术）。
         EdpaAgentEnhancer.enhance(deepAgent, edpConfig, springBootConfig,
                 governanceConfig != null ? governanceConfig.getActrule() : null,
-                new ToolDataChannel(), skillsDir, versatilePassthroughBuffer, deepAgent, edpaTodolist);
+                new ToolDataChannel(), skillsDir, versatilePassthroughBuffer, deepAgent, edpaTodolist, sysScriptsConfig);
 
-        // 第十三步：强制完成 DeepAgent 初始化。
+        // 第十四步：强制完成 DeepAgent 初始化。
         deepAgent.ensureInitialized();
 
         LOGGER.info("EdpaRuntimeHandler init completed, agentId={}, deepAgent initialized={}, scenarioHome={}",

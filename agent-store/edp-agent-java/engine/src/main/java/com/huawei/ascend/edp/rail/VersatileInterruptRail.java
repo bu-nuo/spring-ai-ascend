@@ -9,6 +9,7 @@ import com.huawei.ascend.edp.channel.ToolDataKey;
 import com.huawei.ascend.edp.channel.ToolDataKeyFactory;
 import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
+import com.huawei.ascend.edp.config.ScriptConstants;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
 import com.openjiuwen.core.session.interaction.InteractiveInput;
 import com.openjiuwen.core.singleagent.interrupt.InterruptRequest;
@@ -125,7 +126,7 @@ public class VersatileInterruptRail extends AgentRail {
             if (resumeInput != null) {
                 LOGGER.info("VersatileInterruptRail: resuming call_versatile with adapter result, toolCallId={}",
                         toolCallId);
-                ctx.getExtra().put("_skip_tool", Boolean.TRUE);
+                ctx.getExtra().put(ScriptConstants.KEY_SKIP_TOOL, Boolean.TRUE);
                 Object toolResult = normalizeResumeToolResult(resumeInput);
                 inputs.setToolResult(toolResult);
                 inputs.setToolMsg(ToolMessage.builder()
@@ -136,7 +137,7 @@ public class VersatileInterruptRail extends AgentRail {
             }
             LOGGER.info("VersatileInterruptRail: intercepting call_versatile, direct call to versatile service");
 
-            ctx.getExtra().put("_skip_tool", Boolean.TRUE);
+            ctx.getExtra().put(ScriptConstants.KEY_SKIP_TOOL, Boolean.TRUE);
 
             Map<String, Object> toolResult = callVersatile(inputs, ctx);
             if (isInputRequired(toolResult)) {

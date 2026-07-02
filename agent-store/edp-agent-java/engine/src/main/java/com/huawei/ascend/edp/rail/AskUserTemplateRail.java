@@ -3,6 +3,10 @@ package com.huawei.ascend.edp.rail;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.ascend.edp.config.EdpConfig;
+import com.huawei.ascend.edp.config.ScriptConstants;
+import com.huawei.ascend.edp.config.ScriptResolver;
+import com.huawei.ascend.edp.config.SysScriptsConfig;
+import com.huawei.ascend.edp.config.ToolConstants;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
 import com.openjiuwen.core.session.interaction.InteractiveInput;
 import com.openjiuwen.core.singleagent.interrupt.InterruptRequest;
@@ -28,7 +32,7 @@ public class AskUserTemplateRail extends AgentRail {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AskUserTemplateRail.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final String TOOL_ASK_USER = "ask_user";
+    private static final String TOOL_ASK_USER = ToolConstants.ASK_USER;
     private static final String DEFAULT_INTERRUPT_ID = "ask_user_interrupt";
 
     /**
@@ -37,12 +41,20 @@ public class AskUserTemplateRail extends AgentRail {
     private final EdpConfig edpConfig;
 
     /**
+     * 话术配置，用于在 beforeToolCall 中预解析 ask_user 话术，
+     * 使 InterruptRequest.message 与 interrupt_start.content 一致。
+     */
+    private final SysScriptsConfig scripts;
+
+    /**
      * 构造 ask_user 话术增强 Rail。
      *
      * @param edpConfig EDP 专有配置，提供话术配置路径
+     * @param scripts  话术配置，用于预解析 ask_user 话术
      */
-    public AskUserTemplateRail(EdpConfig edpConfig) {
+    public AskUserTemplateRail(EdpConfig edpConfig, SysScriptsConfig scripts) {
         this.edpConfig = edpConfig;
+        this.scripts = scripts;
         setPriority(85);
     }
 
@@ -68,7 +80,7 @@ public class AskUserTemplateRail extends AgentRail {
         Object resumeInput = resolveResumeInput(ctx, toolCallId);
         if (resumeInput != null) {
             LOGGER.info("AskUserTemplateRail: resuming ask_user with user input");
-            ctx.getExtra().put("_skip_tool", Boolean.TRUE);
+            ctx.getExtra().put(ScriptConstants.KEY_SKIP_TOOL, Boolean.TRUE);
             Map<String, Object> toolResult = new LinkedHashMap<>();
             toolResult.put("tool", TOOL_ASK_USER);
             toolResult.put("status", "user_responded");
@@ -84,13 +96,25 @@ public class AskUserTemplateRail extends AgentRail {
         Map<String, Object> args = normalizeArgs(inputs.getToolArgs());
         String question = question(args);
         args.putIfAbsent("question", question);
-        inputs.setToolArgs(args);
-        LOGGER.info("AskUserTemplateRail: interrupting ask_user tool call, toolCallId={}, question='{}'",
-                toolCallId, question);
+
+        // 预解析话术：使 InterruptRequest.message 与 interrupt_start.content 一致，
+        // 避免框架 statusUpdate 携带 LLM 原始 question（与 conversation_end 时序冲突）。
+        String interruptMessage = question;
+        if (scripts != null) {
+            ScriptResolver.resolveAskUser(scripts, args, ctx.getExtra());
+            Object rt = ctx.getExtra().get(ScriptConstants.KEY_RESPONSE_TEMPLATE);
+            if (rt != null && !String.valueOf(rt).isBlank()) {
+                interruptMessage = String.valueOf(rt);
+            } else {
+                interruptMessage = ScriptResolver.interruptStart(scripts);
+            }
+        }
+        LOGGER.info("AskUserTemplateRail: interrupting ask_user tool call, toolCallId={}, message='{}'",
+                toolCallId, interruptMessage);
 
         InterruptRequest request = InterruptRequest.builder()
                 .interruptId(toolCallId)
-                .message(question)
+                .message(interruptMessage)
                 .context(Map.of("tool", TOOL_ASK_USER, "inputs", args))
                 .payloadSchema(Map.of(
                         "type", "object",
@@ -136,18 +160,9 @@ public class AskUserTemplateRail extends AgentRail {
         if (question != null && !String.valueOf(question).isBlank()) {
             return String.valueOf(question);
         }
-        return resolveUtterance();
-    }
-
-    /**
-     * 解析 ask_user 默认追问话术。
-     *
-     * <p>当前 spike 阶段只记录 ScriptsConfig.md 路径，并返回固定话术；后续可扩展为真实模板解析。</p>
-     *
-     * @return ask_user 默认追问话术
-     */
-    private String resolveUtterance() {
-        return "需要您确认以下信息";
+        // 话术由 ScriptsRail（B 面）解析 response_template_* → _edp_response_template，
+        // EdpaEventRail.onToolException 读之填 interrupt_start.content；此处仅返回占位。
+        return "";
     }
 
     private String toJson(Object value) {

@@ -33,11 +33,11 @@ public class ScenarioPromptBuilder {
 
         StringBuilder sb = new StringBuilder();
 
-        sb.append("**当前场景**：").append(scenario.getName()).append("\n");
-
-        if (scenario.getDescription() != null) {
-            sb.append(scenario.getDescription()).append("\n");
-        }
+        // name 和 description 已迁移至 PlanrulePromptBuilder（从 governance/planrule.yaml 的 scenarioName/scenarioDescription 读取）
+        // sb.append("**当前场景**：").append(scenario.getName()).append("\n");
+        // if (scenario.getDescription() != null) {
+        //     sb.append(scenario.getDescription()).append("\n");
+        // }
 
         // 业务范围
         ScenarioScopeConfig scope = scenario.getScope();

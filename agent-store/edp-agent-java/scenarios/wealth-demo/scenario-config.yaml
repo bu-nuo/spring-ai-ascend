@@ -1,8 +1,9 @@
 # scenarios/wealth-demo/scenario-config.yaml
 # 理财购买场景配置（替代 AgentRule_wealth_purchase.md）
 
-name: 理财购买
-description: "理财产品推荐、筛选、购买全流程"
+# name 和 description 已迁移至 governance/planrule.yaml 的 scenarioName 和 scenarioDescription
+# name: 理财购买
+# description: "理财产品推荐、筛选、购买全流程"
 
 scope:
   allowed:

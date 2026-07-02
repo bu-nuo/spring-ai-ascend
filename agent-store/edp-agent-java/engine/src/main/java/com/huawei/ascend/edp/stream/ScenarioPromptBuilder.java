@@ -39,16 +39,16 @@ public class ScenarioPromptBuilder {
         //     sb.append(scenario.getDescription()).append("\n");
         // }
 
-        // 业务范围
-        ScenarioScopeConfig scope = scenario.getScope();
-        if (scope != null) {
-            if (scope.getAllowed() != null && !scope.getAllowed().isEmpty()) {
-                sb.append("**允许业务**：").append(joinList(scope.getAllowed())).append("\n");
-            }
-            if (scope.getDenied() != null && !scope.getDenied().isEmpty()) {
-                sb.append("**禁止业务**：").append(joinList(scope.getDenied())).append("\n");
-            }
-        }
+        // scope 已迁移至 PlanrulePromptBuilder（从 governance/planrule.yaml 的 scope 读取）
+        // ScenarioScopeConfig scope = scenario.getScope();
+        // if (scope != null) {
+        //     if (scope.getAllowed() != null && !scope.getAllowed().isEmpty()) {
+        //         sb.append("**允许业务**：").append(joinList(scope.getAllowed())).append("\n");
+        //     }
+        //     if (scope.getDenied() != null && !scope.getDenied().isEmpty()) {
+        //         sb.append("**禁止业务**：").append(joinList(scope.getDenied())).append("\n");
+        //     }
+        // }
 
         // Todo 步骤已由 EdpaTodoRail.init() 通过 addPromptBuilderSection 动态注入，
         // 此处不再拼接，避免 LLM 看到重复的任务清单。

@@ -10,16 +10,12 @@ import com.huawei.ascend.edp.config.EdpConfigValidator;
 import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.config.GovernanceConfig;
 import com.huawei.ascend.edp.config.GovernanceConfigLoader;
-import com.huawei.ascend.edp.config.ScenarioConfig;
-import com.huawei.ascend.edp.config.ScenarioConfigLoader;
-import com.huawei.ascend.edp.config.ScenarioScopeConfig;
 import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
 import com.huawei.ascend.edp.enhancer.EdpaEventStreamAdapter;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuffer;
 import com.huawei.ascend.edp.stream.PlanrulePromptBuilder;
-import com.huawei.ascend.edp.stream.ScenarioPromptBuilder;
 import com.huawei.ascend.edp.stream.SkillScriptsCollector;
 import com.huawei.ascend.runtime.engine.AgentExecutionContext;
 import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenAgentRuntimeHandler;
@@ -170,48 +166,9 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
             LOGGER.info("No scenarioHome configured; scenario loading skipped, using governance defaults.");
         }
 
-        // 第五步：场景发现与加载（从 scenarioHomePath）。
+        // 第五步：场景发现（scenario-config.yaml 已删除，所有配置迁移至 governance/）。
         if (scenarioHomePath != null && Files.exists(scenarioHomePath)) {
-            try {
-                Path scenarioConfigPath = ScenarioConfigLoader.findScenarioFile(scenarioHomePath);
-                ScenarioConfig scenarioConfig = ScenarioConfigLoader.loadScenarioConfig(scenarioConfigPath);
-                edpConfig.setActiveScenario(scenarioConfig);
-
-                // 用场景级 todolistSteps 覆盖框架级占位
-                if (scenarioConfig.getTodolistSteps() != null) {
-                    edpConfig.setTodolistSteps(scenarioConfig.getTodolistSteps());
-                }
-
-                // 加载 Todo 数据层（catalog entries + dynamic paths）
-                try {
-                    edpaTodolist = new EdpaTodolist(scenarioConfigPath);
-                    LOGGER.info("EdpaTodolist loaded: legacyMode={}, entries={}, dynamicPaths={}",
-                            edpaTodolist.isLegacyMode(), edpaTodolist.getEntries().size(),
-                            edpaTodolist.getDynamicPaths().size());
-                } catch (Exception e) {
-                    LOGGER.warn("Failed to load EdpaTodolist from {}: {}", scenarioConfigPath, e.getMessage());
-                }
-
-                // 用场景级 scope 覆盖框架级
-                if (scenarioConfig.getScope() != null) {
-                    ScenarioScopeConfig scenarioScope = scenarioConfig.getScope();
-                    EdpConfig.Scope frameworkScope = edpConfig.getScope();
-                    if (frameworkScope == null) {
-                        frameworkScope = new EdpConfig.Scope();
-                    }
-                    if (scenarioScope.getAllowed() != null && !scenarioScope.getAllowed().isEmpty()) {
-                        frameworkScope.setAllowed(String.join("、", scenarioScope.getAllowed()));
-                    }
-                    edpConfig.setScope(frameworkScope);
-                }
-
-                LOGGER.info("Scenario loaded from scenarioHome: name={}, todolistSteps={}, skillRouting={}",
-                        scenarioConfig.getName(),
-                        scenarioConfig.getTodolistSteps() != null ? scenarioConfig.getTodolistSteps().size() : 0,
-                        scenarioConfig.getSkillRouting() != null ? scenarioConfig.getSkillRouting().size() : 0);
-            } catch (Exception e) {
-                LOGGER.warn("Failed to load scenario config from scenarioHome {}: {}", scenarioHomePath, e.getMessage());
-            }
+            LOGGER.info("Scenario directory found: {}", scenarioHomePath);
         } else if (scenarioHomePath != null) {
             LOGGER.warn("scenarioHome directory does not exist: {}", scenarioHomePath);
         }
@@ -219,7 +176,6 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
         // 第六步：配置校验 fail-fast。
         EdpConfigValidator.validateModelConfig(springBootConfig.getModel());
         EdpConfigValidator.validateVersatileUrl(springBootConfig.getVersatile());
-        EdpConfigValidator.validateTodolistSteps(edpConfig);
         if (scenarioHomePath != null) {
             EdpConfigValidator.validateScenarioConfig(scenarioHomePath);
         }
@@ -231,11 +187,25 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
                 governanceConfig.getActrule() != null ? "present" : "null",
                 governanceConfig.getScriptconfig() != null ? "present" : "null");
 
-        // 第八步：拼接完整系统提示词（planrule + scenario 两部分）。
-        // 第一部分：PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule())
-        // 第二部分：ScenarioPromptBuilder.buildSystemPrompt(scenario)
-        ScenarioConfig scenario = edpConfig.getActiveScenario();
-        String systemPrompt = buildFullSystemPrompt(governanceConfig, scenario);
+        // 从 governance actrule 加载 Todo 数据层（替代式覆盖，框架默认无 todolist）
+        ActRuleConfig actrule = governanceConfig.getActrule();
+        if (actrule != null && actrule.getTodolistEntries() != null
+                && !actrule.getTodolistEntries().isEmpty()) {
+            try {
+                edpaTodolist = new EdpaTodolist(
+                        actrule.getTodolistEntries(),
+                        actrule.getTodolistDynamicPaths());
+                LOGGER.info("EdpaTodolist loaded from governance actrule: entries={}, dynamicPaths={}",
+                        edpaTodolist.getEntries().size(),
+                        edpaTodolist.getDynamicPaths().size());
+            } catch (Exception e) {
+                LOGGER.warn("Failed to load EdpaTodolist from governance actrule: {}", e.getMessage());
+            }
+        }
+
+        // 第八步：拼接完整系统提示词。
+        // ScenarioConfig + ScenarioPromptBuilder 已删除，所有内容已迁移至 PlanrulePromptBuilder（从 governance/planrule.yaml 读取）。
+        String systemPrompt = buildFullSystemPrompt(governanceConfig);
 
         // 第九步：构造 DeepAgentConfig。
         // Skill 目录从 scenarioHomePath/skills 解析，不再从 yamlDir.resolve("./skills")。
@@ -251,11 +221,11 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
 
         // 第十二步：加载框架级、场景级、Skill 级话术（D3 修复：话术加载前移到 enhance 之前）。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
-        // 框架级话术（SysScriptsConfig.yaml 已迁移至 governance/scriptconfig.yaml，此处兼容旧路径）。
-        Path frameworkScriptsPath = yamlDir.resolve("SysScriptsConfig.yaml").toAbsolutePath().normalize();
+        // 框架级话术：从 governance/scriptconfig.yaml 加载。
+        Path frameworkScriptsPath = yamlDir.resolve("governance/scriptconfig.yaml").toAbsolutePath().normalize();
         sysScriptsConfig.load(frameworkScriptsPath.toString());
         if (scenarioHomePath != null) {
-            Path scenarioScriptsConfigPath = scenarioHomePath.resolve("ScriptsConfig.yaml").toAbsolutePath().normalize();
+            Path scenarioScriptsConfigPath = scenarioHomePath.resolve("governance/scriptconfig.yaml").toAbsolutePath().normalize();
             sysScriptsConfig.load(scenarioScriptsConfigPath.toString());
         }
         if (skillsDir != null && Files.exists(skillsDir)) {
@@ -560,43 +530,20 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
      *
      * @param governance GovernanceConfig对象，包含planrule配置
      * @param scenario ScenarioConfig对象，包含场景级动态内容
-     * @return 完整系统提示词（两部分拼接）
+     * @return 完整系统提示词
      */
-    private String buildFullSystemPrompt(GovernanceConfig governance, ScenarioConfig scenario) {
+    private String buildFullSystemPrompt(GovernanceConfig governance) {
 
-        // 第一部分：planrule四字段拼接（替代Python版markdown_body）
+        // 系统提示词从 governance/planrule.yaml 构建
         String planruleFragment = "";
         if (governance != null && governance.getPlanrule() != null) {
             planruleFragment = PlanrulePromptBuilder.buildSystemPromptFragment(governance.getPlanrule());
             LOGGER.info("Planrule fragment built: length={}", planruleFragment.length());
         }
 
-        // 第二部分：工具说明 + 场景规则（对应Python版build_system_prompt()）
-        String scenarioFragment = "";
-        if (scenario != null) {
-            scenarioFragment = ScenarioPromptBuilder.buildSystemPrompt(scenario);
-            LOGGER.info("Scenario fragment built: length={}", scenarioFragment.length());
-        } else {
-            // 如果scenario为null，场景提示词部分为空
-            scenarioFragment = "";
-        }
-
-        // 拼接两部分（对应Python版拼接方式）
-        String fullSystemPrompt;
-        if (planruleFragment.isEmpty()) {
-            fullSystemPrompt = scenarioFragment;  // 如果planrule为空，只返回第二部分
-            LOGGER.info("Full system prompt: only scenario fragment (planrule empty)");
-        } else if (scenarioFragment.isEmpty()) {
-            fullSystemPrompt = planruleFragment;  // 如果scenario为空，只返回第一部分
-            LOGGER.info("Full system prompt: only planrule fragment (scenario empty)");
-        } else {
-            fullSystemPrompt = planruleFragment + "\n\n" + scenarioFragment;  // 拼接两部分，中间空行分隔
-            LOGGER.info("Full system prompt: planrule + scenario fragments concatenated");
-        }
-
-        LOGGER.info("Full system prompt built: total length={}", fullSystemPrompt.length());
-        LOGGER.info("=== FULL SYSTEM PROMPT START ===\n{}\n=== FULL SYSTEM PROMPT END ===", fullSystemPrompt);
-        return fullSystemPrompt;
+        LOGGER.info("Full system prompt built: total length={}", planruleFragment.length());
+        LOGGER.info("=== FULL SYSTEM PROMPT START ===\n{}\n=== FULL SYSTEM PROMPT END ===", planruleFragment);
+        return planruleFragment;
     }
 
     /**

@@ -87,6 +87,16 @@ public class GovernanceConfig {
             this.planrule.setDescription(scenarioPlanrule.getDescription());
         }
 
+        // scenarioName: 继承式覆盖（仅场景级配置，框架默认无值）
+        if (scenarioPlanrule.getScenarioName() != null) {
+            this.planrule.setScenarioName(scenarioPlanrule.getScenarioName());
+        }
+
+        // scenarioDescription: 继承式覆盖（仅场景级配置，框架默认无值）
+        if (scenarioPlanrule.getScenarioDescription() != null) {
+            this.planrule.setScenarioDescription(scenarioPlanrule.getScenarioDescription());
+        }
+
         // scope: 替代式覆盖（完全覆盖）
         if (scenarioPlanrule.getScope() != null) {
             this.planrule.setScope(scenarioPlanrule.getScope());
@@ -95,6 +105,11 @@ public class GovernanceConfig {
         // supplementaryPrompt: 替代式覆盖
         if (scenarioPlanrule.getSupplementaryPrompt() != null) {
             this.planrule.setSupplementaryPrompt(scenarioPlanrule.getSupplementaryPrompt());
+        }
+
+        // skillRouting: 继承式覆盖（框架默认无值，场景配置即最终值）
+        if (scenarioPlanrule.getSkillRouting() != null) {
+            this.planrule.setSkillRouting(scenarioPlanrule.getSkillRouting());
         }
     }
 
@@ -142,6 +157,15 @@ public class GovernanceConfig {
         if (scenarioActrule.getToolLimits() != null) {
             this.actrule.setToolLimits(scenarioActrule.getToolLimits());
         }
+
+        // todolistEntries: 替代式覆盖（场景提供完整定义，框架默认无值）
+        if (scenarioActrule.getTodolistEntries() != null) {
+            this.actrule.setTodolistEntries(scenarioActrule.getTodolistEntries());
+        }
+        // todolistDynamicPaths: 替代式覆盖
+        if (scenarioActrule.getTodolistDynamicPaths() != null) {
+            this.actrule.setTodolistDynamicPaths(scenarioActrule.getTodolistDynamicPaths());
+        }
     }
 
     /**
@@ -167,6 +191,28 @@ public class GovernanceConfig {
         if (scenarioScriptconfig.getSummary() != null) {
             this.scriptconfig.setSummary(scenarioScriptconfig.getSummary());
         }
+
+        // askUserConfirm: 继承式覆盖
+        if (scenarioScriptconfig.getAskUserConfirm() != null) {
+            mergeAskUserConfirm(scenarioScriptconfig.getAskUserConfirm());
+        }
+    }
+
+    /**
+     * 合并 askUserConfirm 配置（继承式覆盖，逐字段合并）。
+     */
+    private void mergeAskUserConfirm(ScriptConfig.AskUserConfirm scenarioConfirm) {
+        if (this.scriptconfig.getAskUserConfirm() == null) {
+            this.scriptconfig.setAskUserConfirm(new ScriptConfig.AskUserConfirm());
+        }
+        ScriptConfig.AskUserConfirm target = this.scriptconfig.getAskUserConfirm();
+
+        if (scenarioConfirm.getPurchaseConfirm() != null) {
+            target.setPurchaseConfirm(scenarioConfirm.getPurchaseConfirm());
+        }
+        if (scenarioConfirm.getCancelConfirm() != null) {
+            target.setCancelConfirm(scenarioConfirm.getCancelConfirm());
+        }
     }
 
     /**
@@ -184,7 +230,27 @@ public class GovernanceConfig {
             defaultThinkChunk.setThinkChunkMode(scenarioThinkChunk.getThinkChunkMode());
         }
         if (scenarioThinkChunk.getThinkChunkFixedScripts() != null) {
-            defaultThinkChunk.setThinkChunkFixedScripts(scenarioThinkChunk.getThinkChunkFixedScripts());
+            if (defaultThinkChunk.getThinkChunkFixedScripts() == null) {
+                defaultThinkChunk.setThinkChunkFixedScripts(scenarioThinkChunk.getThinkChunkFixedScripts());
+            } else {
+                mergeFixedScripts(defaultThinkChunk.getThinkChunkFixedScripts(),
+                        scenarioThinkChunk.getThinkChunkFixedScripts());
+            }
         }
+    }
+
+    /**
+     * 合并固定话术帧配置（继承式覆盖各字段）。
+     */
+    private void mergeFixedScripts(ScriptConfig.ThinkChunkFixedScripts def,
+                                   ScriptConfig.ThinkChunkFixedScripts scenario) {
+        if (scenario.getEnabled() != null) { def.setEnabled(scenario.getEnabled()); }
+        if (scenario.getCharsPerFrame() != null) { def.setCharsPerFrame(scenario.getCharsPerFrame()); }
+        if (scenario.getTokensBetweenFrames() != null) { def.setTokensBetweenFrames(scenario.getTokensBetweenFrames()); }
+        if (scenario.getMinIntervalMs() != null) { def.setMinIntervalMs(scenario.getMinIntervalMs()); }
+        if (scenario.getDefaultScripts() != null) { def.setDefaultScripts(scenario.getDefaultScripts()); }
+        if (scenario.getExecutionScripts() != null) { def.setExecutionScripts(scenario.getExecutionScripts()); }
+        if (scenario.getResumeScripts() != null) { def.setResumeScripts(scenario.getResumeScripts()); }
+        if (scenario.getQueryPatterns() != null) { def.setQueryPatterns(scenario.getQueryPatterns()); }
     }
 }

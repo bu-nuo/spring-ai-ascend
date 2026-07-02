@@ -8,7 +8,6 @@ spring:
 edpa:
   agent:
     config-path: ${EDPA_AGENT_CONFIG_PATH:src/main/resources/edp-config.yaml}
-    scripts-config-path: ${EDPA_AGENT_SCRIPTS_PATH:src/main/resources/SysScriptsConfig.yaml}
     scenario-home: ${EDP_AGENT_SCENARIO_HOME:../scenarios/wealth-demo}
     model:
       provider: ${EDP_AGENT_MODEL_PROVIDER:OpenAI}

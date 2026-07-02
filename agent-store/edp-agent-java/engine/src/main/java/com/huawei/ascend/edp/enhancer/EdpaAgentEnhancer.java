@@ -157,9 +157,8 @@ public class EdpaAgentEnhancer {
         if (agent == null) {
             throw new IllegalArgumentException("DeepAgent instance must not be null");
         }
-        LOGGER.info("EdpaAgentEnhancer.enhance() start, edpConfig scope={}, todolistSteps={}",
-                edpConfig.getScope() != null ? edpConfig.getScope().getAllowed() : "null",
-                edpConfig.getTodolistSteps() != null ? edpConfig.getTodolistSteps().size() : 0);
+        LOGGER.info("EdpaAgentEnhancer.enhance() start, edpConfig scope={}",
+                edpConfig.getScope() != null ? edpConfig.getScope().getAllowed() : "null");
 
         // 先注册工具，确保模型工具列表和后续 Rail 拦截逻辑具备目标工具。
         registerBusinessTools(agent, edpConfig, actrule);

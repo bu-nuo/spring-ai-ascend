@@ -3,10 +3,8 @@ package com.huawei.ascend.edp.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 /**
  * 启动时配置校验器。
@@ -81,26 +79,7 @@ public class EdpConfigValidator {
     }
 
     /**
-     * 校验 todolist_steps 与 step_id 一致性。
-     */
-    public static void validateTodolistSteps(EdpConfig edpConfig) {
-        List<EdpConfig.TodolistStep> steps = edpConfig.getTodolistSteps();
-        if (steps != null) {
-            for (EdpConfig.TodolistStep step : steps) {
-                if ("_placeholder_".equals(step.getSkill())) {
-                    throw new IllegalStateException("TodolistSteps contains placeholder step. "
-                        + "Set EDP_AGENT_ACTIVE_SCENARIO or check scenario-config.yaml.");
-                }
-            }
-        }
-    }
-
-    /**
-     * 校验场景配置（方案 B：从 scenarioHome 直接定位）。
-     *
-     * scenarioHome 已指向活动场景目录，直接在该目录下校验 scenario-config.yaml。
-     *
-     * @param scenarioHome 活动场景目录路径（绝对路径）
+     * 校验场景目录。scenario-config.yaml 已删除，验证 governance/ 目录结构。
      */
     public static void validateScenarioConfig(Path scenarioHome) {
         if (scenarioHome == null) {
@@ -110,30 +89,22 @@ public class EdpConfigValidator {
         if (!Files.exists(scenarioHome)) {
             throw new IllegalStateException("scenarioHome directory not found: " + scenarioHome);
         }
-        try {
-            Path scenarioPath = ScenarioConfigLoader.findScenarioFile(scenarioHome);
-            ScenarioConfig config = ScenarioConfigLoader.loadScenarioConfig(scenarioPath);
-            LOGGER.info("Scenario config validated: name={}, todolistSteps={}",
-                config.getName(),
-                config.getTodolistSteps() != null ? config.getTodolistSteps().size() : 0);
-            if (config.getTodolistSteps() != null) {
-                for (EdpConfig.TodolistStep step : config.getTodolistSteps()) {
-                    if ("_placeholder_".equals(step.getSkill())) {
-                        throw new IllegalStateException("Scenario todolist_steps contains placeholder. Check " + scenarioPath);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to load scenario config from scenarioHome: " + e.getMessage());
+        Path governanceDir = scenarioHome.resolve("governance");
+        if (!Files.exists(governanceDir)) {
+            throw new IllegalStateException(
+                    "Scenario governance directory not found: " + governanceDir
+                            + ". Expected governance/{planrule,actrule,scriptconfig}.yaml");
         }
+        LOGGER.info("Scenario governance validated: {}", governanceDir);
     }
 
     /**
      * 校验 skill_routing 中声明的 Skill 在 skills 目录中存在。
+     * 数据源已从 ScenarioConfig 迁移至 PlanRuleConfig。
      */
-    public static void validateSkillRouting(ScenarioConfig scenario, Path skillsDir) {
-        if (scenario == null || scenario.getSkillRouting() == null) return;
-        for (ScenarioSkillRouting routing : scenario.getSkillRouting()) {
+    public static void validateSkillRouting(PlanRuleConfig planrule, Path skillsDir) {
+        if (planrule == null || planrule.getSkillRouting() == null) return;
+        for (PlanRuleConfig.SkillRoute routing : planrule.getSkillRouting()) {
             Path skillDir = skillsDir.resolve(routing.getSkill());
             if (!Files.exists(skillDir)) {
                 throw new IllegalStateException("Skill routing references non-existent skill: " + routing.getSkill());

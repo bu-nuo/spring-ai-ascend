@@ -2,6 +2,7 @@ package com.huawei.ascend.edp.config;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
@@ -27,6 +28,67 @@ class GovernanceConfigLoaderTest {
 
     @TempDir
     Path tempDir;
+
+    @Test
+    @DisplayName("测试4.1：场景名称和描述的继承式覆盖（空模板+增量）")
+    void testScenarioNameAndDescriptionMerge() throws Exception {
+        // 准备框架级配置（不含 scenarioName/scenarioDescription）
+        Path frameworkDir = tempDir.resolve("framework-no-scenario");
+        Files.createDirectories(frameworkDir);
+        createFrameworkConfig(frameworkDir);
+        
+        // 准备场景级配置（含 scenarioName/scenarioDescription）
+        Path scenarioDir = tempDir.resolve("scenario-with-name");
+        Files.createDirectories(scenarioDir);
+        createScenarioConfig(scenarioDir);
+        
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+        
+        // 验证：场景级 scenarioName 覆盖生效
+        assertNotNull(mergedConfig.getPlanrule(), "planrule配置应存在");
+        assertEquals("理财购买", mergedConfig.getPlanrule().getScenarioName(),
+                "场景级 scenarioName 应覆盖框架级（框架级为null）");
+        assertEquals("理财产品推荐、筛选、购买全流程", mergedConfig.getPlanrule().getScenarioDescription(),
+                "场景级 scenarioDescription 应覆盖框架级（框架级为null）");
+        
+        // 验证：框架默认 planrule 不含 scenarioName（确保非场景模式不受影响）
+        GovernanceConfig frameworkOnly = GovernanceConfigLoader.load(frameworkDir);
+        assertNull(frameworkOnly.getPlanrule().getScenarioName(),
+                "框架默认 planrule 应不含 scenarioName");
+        assertNull(frameworkOnly.getPlanrule().getScenarioDescription(),
+                "框架默认 planrule 应不含 scenarioDescription");
+    }
+
+    @Test
+    @DisplayName("测试4.2：场景只配名称不配描述时的继承式覆盖")
+    void testScenarioNameOnlyWithoutDescription() throws Exception {
+        // 准备框架级配置
+        Path frameworkDir = tempDir.resolve("framework-name-only");
+        Files.createDirectories(frameworkDir);
+        createFrameworkConfig(frameworkDir);
+        
+        // 准备场景级配置（仅 scenarioName，无 scenarioDescription）
+        Path scenarioDir = tempDir.resolve("scenario-name-only");
+        Files.createDirectories(scenarioDir);
+        String planruleYaml = "planrule:\n" +
+                "  scenario_name: 杭研智贷通\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleYaml);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+        
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+        
+        // 验证：scenarioName 生效，scenarioDescription 继承框架（null）
+        assertEquals("杭研智贷通", mergedConfig.getPlanrule().getScenarioName(),
+                "只配 scenarioName 时应覆盖生效");
+        assertNull(mergedConfig.getPlanrule().getScenarioDescription(),
+                "未配 scenarioDescription 时应为 null（继承框架默认）");
+        
+        // 验证：role 仍继承框架
+        assertEquals("通用动态规划智能体角色定位", mergedConfig.getPlanrule().getRole(),
+                "未覆盖的 role 应继承框架默认");
+    }
 
     @Test
     @DisplayName("测试1：从框架级governance目录加载配置")
@@ -222,6 +284,8 @@ class GovernanceConfigLoaderTest {
         // planrule.yaml（场景级覆盖）
         String planruleYaml = "planrule:\n" +
                 "  role: 理财场景智能助手\n" +
+                "  scenario_name: 理财购买\n" +
+                "  scenario_description: 理财产品推荐、筛选、购买全流程\n" +
                 "  scope:\n" +
                 "    allowed: '理财产品查询、理财产品推荐'\n" +
                 "    denied: '基金相关业务'\n" +
@@ -241,5 +305,85 @@ class GovernanceConfigLoaderTest {
                 "  think_chunk_scripts:\n" +
                 "    think_chunk_mode: real_stream\n";
         Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scriptconfigYaml);
+    }
+
+    /**
+     * 创建最简场景级配置（仅含 actrule 和 scriptconfig 空壳），
+     * 用于测试仅 planrule 有差异的场景。
+     */
+    private void createMinimalActruleAndScriptconfig(Path scenarioDir) throws Exception {
+        String actruleYaml = "actrule:\n";
+        Files.writeString(scenarioDir.resolve("actrule.yaml"), actruleYaml);
+        String scriptconfigYaml = "scriptconfig:\n";
+        Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scriptconfigYaml);
+    }
+
+    @Test
+    @DisplayName("测试7：skill_routing 的继承式覆盖（框架无值，场景有值）")
+    void testSkillRoutingMergeFromScenario() throws Exception {
+        // 准备框架级配置（不含 skill_routing）
+        Path frameworkDir = tempDir.resolve("framework-sr");
+        Files.createDirectories(frameworkDir);
+        createFrameworkConfig(frameworkDir);
+
+        // 准备场景级配置（含 skill_routing）
+        Path scenarioDir = tempDir.resolve("scenario-sr");
+        Files.createDirectories(scenarioDir);
+        String planruleWithSkillRouting = "planrule:\n" +
+                "  skill_routing:\n" +
+                "    - trigger: '用户首次请求推荐理财产品'\n" +
+                "      skill: 'product_recommend_skill'\n" +
+                "      priority: 1\n" +
+                "    - trigger: '用户从推荐结果中选择产品'\n" +
+                "      skill: 'product_select_skill'\n" +
+                "      priority: 2\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleWithSkillRouting);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：场景级 skill_routing 覆盖生效
+        assertNotNull(mergedConfig.getPlanrule(), "planrule配置应存在");
+        assertNotNull(mergedConfig.getPlanrule().getSkillRouting(), "skillRouting 应存在");
+        assertEquals(2, mergedConfig.getPlanrule().getSkillRouting().size(), "应有 2 条路由规则");
+
+        PlanRuleConfig.SkillRoute r1 = mergedConfig.getPlanrule().getSkillRouting().get(0);
+        assertEquals("用户首次请求推荐理财产品", r1.getTrigger());
+        assertEquals("product_recommend_skill", r1.getSkill());
+        assertEquals(1, r1.getPriority());
+
+        PlanRuleConfig.SkillRoute r2 = mergedConfig.getPlanrule().getSkillRouting().get(1);
+        assertEquals("用户从推荐结果中选择产品", r2.getTrigger());
+        assertEquals("product_select_skill", r2.getSkill());
+        assertEquals(2, r2.getPriority());
+
+        // 验证：框架级仍为 null（未受影响）
+        GovernanceConfig frameworkOnly = GovernanceConfigLoader.load(frameworkDir);
+        assertNull(frameworkOnly.getPlanrule().getSkillRouting(),
+                "框架默认 planrule 应不含 skillRouting");
+    }
+
+    @Test
+    @DisplayName("测试8：skill_routing 仅加载场景级配置（无框架）")
+    void testSkillRoutingScenarioOnly() throws Exception {
+        Path scenarioDir = tempDir.resolve("scenario-sr-only");
+        Files.createDirectories(scenarioDir);
+        String planruleYaml = "planrule:\n" +
+                "  skill_routing:\n" +
+                "    - trigger: '用户确认购买'\n" +
+                "      skill: 'fund_planning_skill'\n" +
+                "      priority: 1\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleYaml);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        Path frameworkDir = tempDir.resolve("non-existent-framework-sr");
+        GovernanceConfig config = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        assertNotNull(config.getPlanrule().getSkillRouting(), "仅场景配置时 skillRouting 应存在");
+        assertEquals(1, config.getPlanrule().getSkillRouting().size());
+        assertEquals("用户确认购买", config.getPlanrule().getSkillRouting().get(0).getTrigger());
+        assertEquals("fund_planning_skill", config.getPlanrule().getSkillRouting().get(0).getSkill());
+        assertEquals(1, config.getPlanrule().getSkillRouting().get(0).getPriority());
     }
 }

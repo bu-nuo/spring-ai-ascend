@@ -10,6 +10,7 @@ import com.huawei.ascend.edp.config.EdpConfigValidator;
 import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.config.GovernanceConfig;
 import com.huawei.ascend.edp.config.GovernanceConfigLoader;
+import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.enhancer.EdpaAgentEnhancer;
 import com.huawei.ascend.edp.enhancer.EdpaEventStreamAdapter;
 import com.huawei.ascend.edp.rail.VersatileInterruptRail;
@@ -220,11 +221,11 @@ public class EdpaRuntimeHandler extends OpenJiuwenAgentRuntimeHandler {
 
         // 第十二步：加载框架级、场景级、Skill 级话术（D3 修复：话术加载前移到 enhance 之前）。
         SysScriptsConfig sysScriptsConfig = new SysScriptsConfig();
-        // 框架级话术（SysScriptsConfig.yaml 已迁移至 governance/scriptconfig.yaml，此处兼容旧路径）。
-        Path frameworkScriptsPath = yamlDir.resolve("SysScriptsConfig.yaml").toAbsolutePath().normalize();
+        // 框架级话术：从 governance/scriptconfig.yaml 加载。
+        Path frameworkScriptsPath = yamlDir.resolve("governance/scriptconfig.yaml").toAbsolutePath().normalize();
         sysScriptsConfig.load(frameworkScriptsPath.toString());
         if (scenarioHomePath != null) {
-            Path scenarioScriptsConfigPath = scenarioHomePath.resolve("ScriptsConfig.yaml").toAbsolutePath().normalize();
+            Path scenarioScriptsConfigPath = scenarioHomePath.resolve("governance/scriptconfig.yaml").toAbsolutePath().normalize();
             sysScriptsConfig.load(scenarioScriptsConfigPath.toString());
         }
         if (skillsDir != null && Files.exists(skillsDir)) {

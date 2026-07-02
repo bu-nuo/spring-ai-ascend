@@ -1,5 +1,6 @@
 package com.huawei.ascend.edp.rail;
 
+import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.EdpaTodolist;
 import com.huawei.ascend.edp.config.EdpaTodolist.DynamicPath;
 import com.huawei.ascend.edp.config.ScriptConstants;
@@ -150,30 +151,22 @@ class EdpaTodoRailTest {
     }
 
     private static EdpaTodolist makeEmptyTodolist() {
-        try {
-            java.nio.file.Path tmp = Files.createTempFile("edpa-todolist", ".yaml");
-            Files.writeString(tmp, "todolist_steps:\n  - step_id: 1\n    content: x\n");
-            return new EdpaTodolist(tmp);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        ActRuleConfig.TodolistEntry entry = new ActRuleConfig.TodolistEntry();
+        entry.setCatalogId("x");
+        entry.setContent("x");
+        entry.setDependsOn(List.of());
+        return new EdpaTodolist(List.of(entry), List.of());
     }
 
     private static EdpaTodolist makeTwoEntryTodolist() {
-        try {
-            java.nio.file.Path tmp = Files.createTempFile("edpa-todolist-2", ".yaml");
-            Files.writeString(tmp, """
-                    todolist:
-                      entries:
-                        - catalog_id: a
-                          content: "a"
-                        - catalog_id: b
-                          content: "b"
-                          depends_on: [a]
-                    """);
-            return new EdpaTodolist(tmp);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        ActRuleConfig.TodolistEntry a = new ActRuleConfig.TodolistEntry();
+        a.setCatalogId("a");
+        a.setContent("a");
+        a.setDependsOn(List.of());
+        ActRuleConfig.TodolistEntry b = new ActRuleConfig.TodolistEntry();
+        b.setCatalogId("b");
+        b.setContent("b");
+        b.setDependsOn(List.of("a"));
+        return new EdpaTodolist(List.of(a, b), List.of());
     }
 }

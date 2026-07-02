@@ -49,6 +49,7 @@ public class SysScriptsConfig {
             Map<String, Object> parsed = YAML_MAPPER.readValue(Files.readString(path), Map.class);
             flatten("", parsed);
             aliasCommonKeys();
+            aliasGovernancePrefixes();
             LOGGER.info("SysScriptsConfig loaded from {}, templates={}", path, templates.size());
         } catch (Exception e) {
             LOGGER.warn("Failed to load SysScriptsConfig from {}: {}", path, e.getMessage());
@@ -151,5 +152,22 @@ public class SysScriptsConfig {
         if (templates.containsKey("ask_user_confirm.default_confirm")) {
             templates.put("ask_user_confirm", templates.get("ask_user_confirm.default_confirm"));
         }
+    }
+
+    /**
+     * governance/scriptconfig.yaml 嵌套结构适配：剥离 scriptconfig.general_scripts. 前缀，
+     * 使消费者能以平铺 key（tool_start / interrupt_start 等）查找话术。
+     */
+    private void aliasGovernancePrefixes() {
+        Map<String, String> aliases = new LinkedHashMap<>();
+        // YAML 顶层有 scriptconfig: 键，flatten 产生 scriptconfig.general_scripts.xxx
+        String prefix = "scriptconfig.general_scripts.";
+        for (Map.Entry<String, String> e : templates.entrySet()) {
+            if (e.getKey().startsWith(prefix)) {
+                String shortKey = e.getKey().substring(prefix.length());
+                aliases.put(shortKey, e.getValue());
+            }
+        }
+        templates.putAll(aliases);
     }
 }

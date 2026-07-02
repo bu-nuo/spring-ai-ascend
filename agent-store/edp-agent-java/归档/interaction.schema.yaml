@@ -1,0 +1,166 @@
+# Interaction Schema Definition
+#
+# 定位：交互域Schema，定义Agent与人协同的配置、话术配置和执行总结格式
+#
+# 作用：
+# - 回答Agent如何与人协同
+# - 回答Agent何时需要人工参与
+#
+# 继承覆盖规则：
+# - clarification.enabled：继承式覆盖（只写差异）
+# - clarification.max_rounds：继承式覆盖（只写差异）
+# - approval.enabled：继承式覆盖（只写差异）
+# - query_patterns：替代式覆盖（完全覆盖）
+# - summary.format：替代式覆盖（完全覆盖）
+# - summary.max_length：替代式覆盖（完全覆盖）
+# - summary.required_fields：替代式覆盖（完全覆盖）
+
+interaction:
+  # 追问配置--删掉
+  clarification:
+    type: object
+    description: 信息不足时的追问配置
+
+    # 是否允许追问用户
+    enabled:
+      type: boolean
+      description: |
+        信息不足时是否允许追问用户
+        
+        追问可以让Agent获取更多信息，提高任务成功率
+        
+        当信息不足时，Agent可以选择：
+        - true：向用户追问，获取更多信息
+        - false：不追问，直接执行或报告失败
+        
+        建议开启追问，提高任务成功率
+      example: true
+      range:
+        values: [true, false]
+        default: true
+        recommended: true
+      inheritance: inheritable
+
+    # 限制最大追问轮数--删掉
+    max_rounds:
+      type: integer
+      description: |
+        限制最大追问轮数
+        
+        追问轮数是指Agent向用户追问的总次数
+        限制追问轮数可以避免无限追问，提高执行效率
+        
+        例如：
+        - max_rounds: 3 表示最多追问3轮
+        - 如果3轮追问后信息仍不足，则直接执行或报告失败
+      example: 3
+      range:
+        min: 1
+        max: 10
+        default: 3
+        recommended: 2-5
+      inheritance: inheritable
+
+  # 审批配置--删掉
+  approval:
+    type: object
+    description: 人工审批配置
+
+    # 是否启用人工审批机制
+    enabled:
+      type: boolean
+      description: |
+        是否启用人工审批机制
+        
+        人工审批可以让用户在关键决策时参与，提高决策准确性
+        
+        当遇到关键决策时，Agent可以选择：
+        - true：暂停执行，等待人工审批
+        - false：不审批，直接执行
+        
+        建议开启审批，提高决策准确性
+      example: true
+      range:
+        values: [true, false]
+        default: true
+        recommended: true
+      inheritance: inheritable
+
+  # 话术配置
+  query_patterns:
+    type: array[object]
+    description: |
+      话术配置
+      
+      用于LLM交互话术管理
+      
+      keywords：关键词列表，用于匹配用户输入
+      scripts：话术列表，匹配成功后展示给用户
+    example:
+      - keywords:
+          - "推荐"
+          - "理财"
+          - "产品"
+          - "筛选"
+        scripts:
+          - "正在搜索理财产品..."
+      - keywords:
+          - "购买"
+          - "买"
+          - "下单"
+          - "确认"
+        scripts:
+          - "正在确认购买信息..."
+      - keywords:
+          - "余额"
+          - "查询"
+          - "账户"
+          - "转账"
+        scripts:
+          - "正在查询账户信息..."
+    inheritance: replaceable
+
+  # 执行总结格式配置
+  summary:
+    type: object
+    description: |
+      定义执行总结格式
+      
+      Default作为通用动态规划智能体，定义通用的总结格式
+      Scenario根据业务诉求调整总结格式
+
+    # 定义总结格式
+    format:
+      type: string
+      description: 定义总结格式
+      example: "需求概述→规划过程→任务执行→结果汇总→异常说明"
+      inheritance: replaceable
+
+    # 定义总结最大长度
+    max_length:
+      type: integer
+      description: |
+        定义总结最大长度
+        
+        总结长度是指执行总结文本的总字符数
+        限制总结长度可以避免总结过长，提高可读性
+        
+        例如：
+        - max_length: 500 表示总结最多500字符
+        - 如果总结超过500字符，则截断或压缩
+      example: 500
+      range:
+        min: 100
+        max: 2000
+        default: 500
+        recommended: 300-1000
+      inheritance: replaceable
+
+    # 定义总结必填字段
+    required_fields:
+      type: array[string]
+      description: 定义总结必填字段
+      example:
+        - "理财产品名称"
+        - "购买金额"
+      inheritance: replaceable

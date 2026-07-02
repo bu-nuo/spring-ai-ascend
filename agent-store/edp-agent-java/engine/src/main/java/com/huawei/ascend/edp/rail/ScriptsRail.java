@@ -80,7 +80,7 @@ public class ScriptsRail extends DeepAgentRail {
     }
 
     // ═══════════════════════════════════════════════════
-    // ② 业务话术解析（ask_user / cancel_task）
+    // ② 业务话术解析（cancel_task only；ask_user 由 EdpaEventRail.onToolException 解析）
     // ═══════════════════════════════════════════════════
 
     @Override
@@ -91,43 +91,11 @@ public class ScriptsRail extends DeepAgentRail {
         String tool = inputs.getToolName();
         Map<String, Object> args = normalizeArgs(inputs.getToolArgs());
 
-        if (ToolConstants.ASK_USER.equals(tool)) {
-            resolveAskUserScript(ctx, args);
-            return;
-        }
+        // ask_user 话术解析已迁移至 EdpaEventRail.onToolException
+        // （AskUserTemplateRail p=85 抛 ToolInterruptException 后此 Rail p=50 不可达）
         if (ToolConstants.CANCEL_TASK.equals(tool) && readResponseTemplate(ctx) == null) {
             resolveCancelScript(ctx, args);
         }
-    }
-
-    /**
-     * ask_user：解析 {@code response_template_status/keys/vars} → 渲染 → {@code _edp_response_template}。
-     *
-     * <p>不抛异常：{@code ToolInterruptException} 由既有 ask_user 机制触发；A 面 EdpaEventRail.onToolException
-     * 读取 {@code _edp_response_template} 填 {@code interrupt_start.content}。
-     * 配置缺位 / 无话术参数 → 放行（兜底交既有 ask_user）。</p>
-     */
-    private void resolveAskUserScript(AgentCallbackContext ctx, Map<String, Object> args) {
-        if (Boolean.TRUE.equals(ctx.getExtra().get(ScriptConstants.KEY_SKIP_TOOL))) {
-            return; // resume 交既有逻辑
-        }
-        String status = str(args.get(ScriptConstants.PARAM_RESPONSE_TEMPLATE_STATUS));
-        Map<String, String> keys = ScriptResolver.coerceJsonMap(args.get(ScriptConstants.PARAM_RESPONSE_TEMPLATE_KEYS));
-        if (keys.isEmpty() || isBlank(status)) {
-            return; // 无话术参数放行
-        }
-        String key = keys.get(status);
-        if (isBlank(key) || !scripts.has(key)) {
-            return; // 配置缺位放行
-        }
-        Map<String, String> vars = ScriptResolver.coerceJsonMap(args.get(ScriptConstants.PARAM_RESPONSE_TEMPLATE_VARS));
-        String text = ScriptResolver.resolve(scripts, key, vars);
-        ctx.getExtra().put(ScriptConstants.KEY_RESPONSE_TEMPLATE, text);
-        ctx.getExtra().put(ScriptConstants.KEY_LAST_SCRIPT, key);
-        if (ScriptConstants.STATUS_CONFIRM.equals(status)) {
-            ctx.getExtra().put(ScriptConstants.KEY_SELECTED_PRODUCT, vars);
-        }
-        LOGGER.info("[EDPA-SCRIPT] ask_user resolved key={} status={} -> response_template", key, status);
     }
 
     /**
@@ -176,41 +144,88 @@ public class ScriptsRail extends DeepAgentRail {
     }
 
     /**
-     * 按 tool + result status 映射结果话术 key（配置缺位返回 null，不兜底）。
+     * 按 tool + result content 业务字段映射结果话术 key（配置缺位返回 null，不兜底）。
+     *
+     * <p>call_versatile 是通用工具，推荐/查余额/转账/购买都走它，仅靠 status 无法区分业务。
+     * 按 content JSON 中的业务字段（productList / productBuyResponse / balance / node_name）细分。</p>
      */
     @SuppressWarnings("unchecked")
     private String pickResultScriptKey(String tool, Object toolResult) {
+        Map<String, Object> result = null;
         String status = null;
+        String content = null;
         if (toolResult instanceof Map<?, ?> map) {
-            Object s = map.get("status");
-            status = s == null ? null : String.valueOf(s);
+            result = (Map<String, Object>) map;
+            status = map.get("status") == null ? null : String.valueOf(map.get("status"));
+            content = map.get("content") == null ? null : String.valueOf(map.get("content"));
         } else if (toolResult instanceof String s) {
             try {
                 Object parsed = OBJECT_MAPPER.readValue(s, Object.class);
                 if (parsed instanceof Map<?, ?> m) {
-                    Object st = m.get("status");
-                    status = st == null ? null : String.valueOf(st);
+                    result = (Map<String, Object>) m;
+                    status = m.get("status") == null ? null : String.valueOf(m.get("status"));
+                    content = m.get("content") == null ? null : String.valueOf(m.get("content"));
                 }
             } catch (Exception ignore) {
-                // 非 JSON，按空 status 处理
+                // 非 JSON，按空处理
             }
         }
         if (ToolConstants.CALL_VERSATILE.equals(tool)) {
-            if (ScriptConstants.RESULT_SUCCESS.equalsIgnoreCase(status)
-                    || ScriptConstants.RESULT_COMPLETED.equalsIgnoreCase(status)) {
-                return ScriptConstants.SCRIPT_FUND_PLANNING_SUCCESS;
-            }
+            // 缺参走 ask_user 话术，不在此兜底
             if (ScriptConstants.STATUS_MISSING_AMOUNT.equalsIgnoreCase(status)
                     || ScriptConstants.STATUS_MISSING_PRODUCT.equalsIgnoreCase(status)) {
-                return null; // 缺参走 ask_user 话术，不在此兜底
+                return null;
             }
-            if (status != null) {
+            // 解析 content JSON 中的业务字段
+            Map<String, Object> contentJson = parseContentJson(content);
+            if (contentJson != null) {
+                // 购买：productBuyResponse
+                Object buyResp = contentJson.get("productBuyResponse");
+                if (buyResp instanceof Map<?, ?> br) {
+                    String buyStatus = br.get("buyStatus") == null ? null : String.valueOf(br.get("buyStatus"));
+                    if ("1".equals(buyStatus)) {
+                        return ScriptConstants.SCRIPT_FUND_PLANNING_SUCCESS;
+                    }
+                    return ScriptConstants.SCRIPT_FUND_PLANNING_FAILED;
+                }
+                // 推荐理财：productList
+                if (contentJson.containsKey("productList")) {
+                    return ScriptConstants.SCRIPT_PRODUCT_RECOMMEND_SUCCESS;
+                }
+                // 查余额 / 转账：无对应话术，不兜底
+                if (contentJson.containsKey("balance") || contentJson.containsKey("node_name")) {
+                    return null;
+                }
+            }
+            // status 非 success/completed 但非空 → failed
+            if (status != null
+                    && !ScriptConstants.RESULT_SUCCESS.equalsIgnoreCase(status)
+                    && !ScriptConstants.RESULT_COMPLETED.equalsIgnoreCase(status)) {
                 return ScriptConstants.SCRIPT_FUND_PLANNING_FAILED;
             }
-            return ScriptConstants.SCRIPT_PRODUCT_RECOMMEND_SUCCESS;
+            // 未知业务，不兜底
+            return null;
         }
         if (ToolConstants.CALL_MCP.equals(tool)) {
             return ScriptConstants.SCRIPT_MCP_RESULT_EMPTY;
+        }
+        return null;
+    }
+
+    /** 尝试解析 content 字段为 JSON Map，失败返回 null。 */
+    private Map<String, Object> parseContentJson(String content) {
+        if (content == null || content.isBlank()) {
+            return null;
+        }
+        try {
+            Object parsed = OBJECT_MAPPER.readValue(content, Object.class);
+            if (parsed instanceof Map<?, ?> m) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> result = (Map<String, Object>) m;
+                return result;
+            }
+        } catch (Exception ignore) {
+            // 非 JSON
         }
         return null;
     }
@@ -221,15 +236,15 @@ public class ScriptsRail extends DeepAgentRail {
 
     @Override
     public void afterInvoke(AgentCallbackContext ctx) {
+        // 出口 request_start 已由 EdpaEventRail.afterInvoke（priority=80）在 conversation_end 之前发射。
+        // 本 Rail（priority=50）不再重复发射，仅执行合规把关（若 _edp_response_template 仍存在）。
         String text = readResponseTemplate(ctx);
         if (isBlank(text)) {
             return;
         }
         complianceGate(ctx);
-        String resolved = readResponseTemplate(ctx);
-        emitScript(ctx, EdpaEventType.REQUEST_START.wireName(), resolved);
         ctx.getExtra().remove(ScriptConstants.KEY_RESPONSE_TEMPLATE); // 清本请求残留
-        LOGGER.info("[EDPA-SCRIPT] exit emit response_template");
+        LOGGER.info("[EDPA-SCRIPT] afterInvoke compliance gate done, response_template cleared");
     }
 
     /**

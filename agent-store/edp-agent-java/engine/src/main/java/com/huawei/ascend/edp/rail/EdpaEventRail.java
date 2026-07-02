@@ -454,13 +454,19 @@ public class EdpaEventRail extends DeepAgentRail {
     @Override
     public void afterInvoke(AgentCallbackContext ctx) {
         String sid = sessionId(ctx);
-        // 出口 request_start：在 conversation_end 之前发射（修复 ScriptsRail priority=50 在 conversation_end 之后发射的 Rule 1 违规）
+        // 出口 request_start：在 conversation_end 之前发射（EdpaEventRail priority=80 是唯一出口发射者）
         Object rt = ctx.getExtra().get(ScriptConstants.KEY_RESPONSE_TEMPLATE);
         if (rt != null && !String.valueOf(rt).isBlank()) {
             String resolved = String.valueOf(rt);
+            // 合规把关：配置外话术 → 替换为 out_of_scope
+            Object lastKey = ctx.getExtra().get(ScriptConstants.KEY_LAST_SCRIPT);
+            if (scripts != null && lastKey != null && !scripts.has(String.valueOf(lastKey))) {
+                resolved = scripts.getOrDefault(ScriptConstants.SCRIPT_OUT_OF_SCOPE, "");
+                LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> compliance gate replaced key={}", sid, lastKey);
+            }
             LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> emit exit request_start (before conversation_end)", sid);
             emit(ctx, EdpaEventType.REQUEST_START, Map.of("content", resolved));
-            ctx.getExtra().remove(ScriptConstants.KEY_RESPONSE_TEMPLATE); // 清本请求残留，ScriptsRail.afterInvoke 不再重复发
+            ctx.getExtra().remove(ScriptConstants.KEY_RESPONSE_TEMPLATE);
         }
         LOGGER.info("[EDPA-DIAG] afterInvoke sid={} -> emit conversation_end (if not already closed)", sid);
         emitConversationEnd(ctx, sid);

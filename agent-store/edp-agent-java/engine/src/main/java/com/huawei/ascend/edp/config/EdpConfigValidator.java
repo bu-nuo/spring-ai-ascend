@@ -23,24 +23,23 @@ public class EdpConfigValidator {
     /**
      * 校验模型配置完整性。
      */
-    public static void validateModelConfig(EdpAgentConfig agentConfig) {
-        EdpAgentConfig.Model model = agentConfig.getModel();
+    public static void validateModelConfig(EdpaSpringBootConfig.ModelConfig model) {
         if (model == null) {
-            throw new IllegalStateException("Model config missing. Set edp-agent.yaml model section.");
+            throw new IllegalStateException("Model config missing. Set edpa.agent.model in application.yml.");
         }
         if (model.getProvider() == null || model.getProvider().isBlank()) {
-            throw new IllegalStateException("Model provider missing. Set edp-agent.yaml model.provider.");
+            throw new IllegalStateException("Model provider missing. Set edpa.agent.model.provider.");
         }
         if (model.getName() == null || model.getName().isBlank()) {
-            throw new IllegalStateException("Model name missing. Set edp-agent.yaml model.name.");
+            throw new IllegalStateException("Model name missing. Set edpa.agent.model.name.");
         }
         if (model.getBaseUrl() == null || model.getBaseUrl().isBlank()) {
-            throw new IllegalStateException("Model baseUrl missing. Set edp-agent.yaml model.baseUrl.");
+            throw new IllegalStateException("Model baseUrl missing. Set edpa.agent.model.base-url.");
         }
 
         String apiKey = model.getApiKey();
         String envApiKey = System.getenv("EDP_AGENT_MODEL_API_KEY");
-        boolean hasValidApiKey = (apiKey != null && !apiKey.isBlank() && !apiKey.equals("PLACEHOLDER_USE_ENV_VAR"))
+        boolean hasValidApiKey = (apiKey != null && !apiKey.isBlank())
                 || (envApiKey != null && !envApiKey.isBlank());
         if (!hasValidApiKey) {
             throw new IllegalStateException("Model apiKey missing. Set EDP_AGENT_MODEL_API_KEY environment variable.");
@@ -48,14 +47,13 @@ public class EdpConfigValidator {
 
         LOGGER.info("Model config validated: provider={}, name={}, apiKeySource={}",
                 model.getProvider(), model.getName(),
-                (envApiKey != null && !envApiKey.isBlank()) ? "ENV_VAR" : "YAML");
+                (envApiKey != null && !envApiKey.isBlank()) ? "ENV_VAR" : "application.yml");
     }
 
     /**
      * 校验 Versatile URL 合法性。
      */
-    public static void validateVersatileUrl(EdpAgentConfig agentConfig) {
-        EdpAgentConfig.Versatile versatile = agentConfig.getVersatile();
+    public static void validateVersatileUrl(EdpaSpringBootConfig.VersatileConfig versatile) {
         if (versatile != null && versatile.getUrl() != null) {
             String url = versatile.getUrl();
             if (url.startsWith("${")) {

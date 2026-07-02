@@ -55,7 +55,7 @@ public class McpInterruptRail extends AgentRail {
         this.edpConfig = edpConfig;
         this.toolDataChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();
         this.skillsDir = skillsDir != null ? skillsDir.toAbsolutePath().normalize() : null;
-        setPriority(50);
+        setPriority(85);
     }
 
     @Override

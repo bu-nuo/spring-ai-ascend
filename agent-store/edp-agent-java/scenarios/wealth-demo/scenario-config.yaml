@@ -1,0 +1,113 @@
+# scenarios/wealth-demo/scenario-config.yaml
+# 理财购买场景配置（替代 AgentRule_wealth_purchase.md）
+
+name: 理财购买
+description: "理财产品推荐、筛选、购买全流程"
+
+scope:
+  allowed:
+    - "理财产品推荐、筛选、购买"
+    - "银行账户余额查询"
+    - "银行账户间转账"
+    - "资金筹划（理财卡与储蓄卡之间的资金调配）"
+  denied:
+    - "基金相关业务"
+    - "股票相关业务"
+    - "保险相关业务"
+    - "贷款相关业务"
+    - "信用卡相关业务"
+    - "购买i豆"
+
+todolist_steps:
+  - step_id: 1
+    content: "推荐理财产品"
+    skill: "product_recommend_skill"
+  - step_id: 2
+    content: "交互式理财筛选"
+    skill: "interact_finance_rec_skill"
+  - step_id: 3
+    content: "确定购买产品和金额"
+    skill: "product_select_skill"
+  - step_id: 4
+    content: "查询理财账户余额，如果资金不足进行资金筹划，并购买理财产品"
+    skill: "fund_planning_skill"
+
+# 动态规划思维链配置（迁移新增，由 EdpaTodoRail 加载）
+todolist:
+  entries:
+    - catalog_id: product_recommend
+      content: "推荐理财产品"
+      description: "根据用户需求推荐合适的理财产品"
+      depends_on: []
+      skill: "product_recommend_skill"
+    - catalog_id: interact_finance_rec
+      content: "交互式理财筛选"
+      description: "用户从推荐结果中交互式筛选产品"
+      depends_on: [product_recommend]
+      skill: "interact_finance_rec_skill"
+    - catalog_id: product_select
+      content: "确定购买产品和金额"
+      description: "用户确认最终购买的产品和金额"
+      depends_on: [interact_finance_rec]
+      skill: "product_select_skill"
+    - catalog_id: fund_planning
+      content: "查询理财账户余额并购买"
+      description: "查询余额，资金不足则筹划，最后购买理财产品"
+      depends_on: [product_select]
+      skill: "fund_planning_skill"
+  dynamic_paths:
+    - path_id: shortcut_skip_filter
+      description: "用户首次推荐即明确选择，跳过交互式筛选"
+      trigger: "product_recommend 返回结果中用户已明确选择某个产品"
+      skip_steps: [interact_finance_rec]
+      redirect: "product_recommend → product_select"
+    - path_id: skip_purchase_if_no_balance
+      description: "账户余额为零，跳过购买步骤"
+      trigger: "fund_planning 查询余额结果为 0"
+      skip_steps: [fund_planning]
+      redirect: "product_select → 结束（提示用户充值）"
+
+skill_routing:
+  - trigger: "用户首次请求推荐理财产品"
+    skill: "product_recommend_skill"
+    priority: 1
+  - trigger: "用户从推荐结果中选择产品"
+    skill: "product_select_skill"
+    priority: 2
+  - trigger: "用户确认购买或需要资金筹划"
+    skill: "fund_planning_skill"
+    priority: 2
+  - trigger: "用户请求换一批、追加筛选条件"
+    skill: "interact_finance_rec_skill"
+    priority: 1
+
+architecture:
+  type: "mcp_first"
+  description: "本场景采用 MCP 先行架构，先获取产品数据再调用工作流"
+  steps:
+    - step_id: 1
+      description: "调用 call_mcp 获取 MCP 产品推荐数据"
+      tool: "call_mcp"
+    - step_id: 2
+      description: "调用 call_versatile 获取低码平台银行信息"
+      tool: "call_versatile"
+    - step_id: 3
+      description: "沙箱归一化脚本合并数据"
+      tool: "execute_cmd"
+  applicable_skills:
+    - "interact_finance_rec_skill"
+  not_applicable_skills:
+    - "product_recommend_skill"
+    - "product_select_skill"
+    - "fund_planning_skill"
+
+query_patterns:
+  - keywords: ["推荐", "理财", "产品", "筛选"]
+    scripts:
+      - "正在搜索理财产品..."
+  - keywords: ["购买", "买", "下单", "确认"]
+    scripts:
+      - "正在确认购买信息..."
+  - keywords: ["余额", "查询", "账户", "转账"]
+    scripts:
+      - "正在查询账户信息..."

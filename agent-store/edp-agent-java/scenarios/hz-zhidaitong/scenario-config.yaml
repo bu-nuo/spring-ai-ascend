@@ -1,0 +1,26 @@
+# scenarios/hz-zhidaitong/scenario-config.yaml
+# 杭研智贷通场景配置（替代 AgentRule_hz_zhidaitong.md）
+
+name: 杭研智贷通
+description: "杭研智贷通贷款申请、审批、放款全流程"
+
+scope:
+  allowed:
+    - "智贷通贷款申请"
+    - "贷款审批"
+    - "放款流程"
+  denied:
+    - "理财相关业务"
+    - "信用卡相关业务"
+
+todolist_steps:
+  - step_id: 1
+    content: "贷款申请"
+    skill: "loan_apply_skill"
+  - step_id: 2
+    content: "审批流程"
+    skill: "loan_approval_skill"
+
+skill_routing: []
+
+architecture: null

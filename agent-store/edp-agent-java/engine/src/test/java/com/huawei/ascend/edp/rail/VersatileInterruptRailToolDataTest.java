@@ -2,7 +2,7 @@ package com.huawei.ascend.edp.rail;
 
 import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.channel.ToolDataKey;
-import com.huawei.ascend.edp.config.EdpAgentConfig;
+import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.openjiuwen.core.foundation.llm.schema.ToolCall;
 import com.openjiuwen.core.session.AgentSessionApi;
 import com.openjiuwen.core.session.interaction.InteractiveInput;
@@ -30,7 +30,7 @@ class VersatileInterruptRailToolDataTest {
         ToolDataKey key = new ToolDataKey("defaultTenant", "edp-agent", "session-1", "session-1");
         Map<String, Object> data = Map.of("products", List.of(Map.of("name", "稳健理财A")));
         channel.store(key, "fund_recommend_result", data);
-        VersatileInterruptRail rail = new VersatileInterruptRail(null, new EdpAgentConfig.Versatile(), channel);
+        VersatileInterruptRail rail = new VersatileInterruptRail(null, new EdpaSpringBootConfig.VersatileConfig(), channel);
 
         Map<String, Object> inputs = invokeBuildInputs(rail, Map.of(
                 "query_description", "购买第一支理财产品",
@@ -45,7 +45,7 @@ class VersatileInterruptRailToolDataTest {
     @Test
     void testBuildInputs_InputKeyMissInjectsEmptyMap() throws Exception {
         ToolDataChannel channel = new ToolDataChannel();
-        VersatileInterruptRail rail = new VersatileInterruptRail(null, new EdpAgentConfig.Versatile(), channel);
+        VersatileInterruptRail rail = new VersatileInterruptRail(null, new EdpaSpringBootConfig.VersatileConfig(), channel);
 
         Map<String, Object> inputs = invokeBuildInputs(rail, Map.of(
                 "query_description", "购买第一支理财产品",
@@ -61,7 +61,7 @@ class VersatileInterruptRailToolDataTest {
         ToolDataChannel channel = new ToolDataChannel();
         ToolDataKey key = new ToolDataKey("defaultTenant", "edp-agent", "session-1", "session-1");
         channel.store(key, "mcp_to_versatile_information", Map.of("query_description", "购买第一支理财产品"));
-        VersatileInterruptRail rail = new VersatileInterruptRail(null, new EdpAgentConfig.Versatile(), channel);
+        VersatileInterruptRail rail = new VersatileInterruptRail(null, new EdpaSpringBootConfig.VersatileConfig(), channel);
 
         Map<String, Object> inputs = invokeBuildInputs(rail, Map.of("query_intent", "理财购买"));
 

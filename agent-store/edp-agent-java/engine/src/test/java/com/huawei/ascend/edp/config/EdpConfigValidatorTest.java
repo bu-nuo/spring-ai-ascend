@@ -19,106 +19,92 @@ class EdpConfigValidatorTest {
 
     @Test
     void testValidateModelConfig_MissingModel() {
-        EdpAgentConfig config = new EdpAgentConfig();
         assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateModelConfig(config),
+                () -> EdpConfigValidator.validateModelConfig((EdpaSpringBootConfig.ModelConfig) null),
                 "缺少 model 应 fail-fast");
     }
 
     @Test
     void testValidateModelConfig_MissingProvider() {
-        EdpAgentConfig config = createValidModelConfig();
-        config.getModel().setProvider(null);
+        EdpaSpringBootConfig.ModelConfig model = createValidModelConfig();
+        model.setProvider(null);
         assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateModelConfig(config),
+                () -> EdpConfigValidator.validateModelConfig(model),
                 "缺少 provider 应 fail-fast");
     }
 
     @Test
     void testValidateModelConfig_MissingName() {
-        EdpAgentConfig config = createValidModelConfig();
-        config.getModel().setName(null);
+        EdpaSpringBootConfig.ModelConfig model = createValidModelConfig();
+        model.setName(null);
         assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateModelConfig(config),
+                () -> EdpConfigValidator.validateModelConfig(model),
                 "缺少 model name 应 fail-fast");
     }
 
     @Test
     void testValidateModelConfig_MissingBaseUrl() {
-        EdpAgentConfig config = createValidModelConfig();
-        config.getModel().setBaseUrl(null);
+        EdpaSpringBootConfig.ModelConfig model = createValidModelConfig();
+        model.setBaseUrl(null);
         assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateModelConfig(config),
+                () -> EdpConfigValidator.validateModelConfig(model),
                 "缺少 baseUrl 应 fail-fast");
     }
 
     @Test
     void testValidateModelConfig_PlaceholderApiKey_NoEnvVar() {
-        EdpAgentConfig config = createValidModelConfig();
-        config.getModel().setApiKey("PLACEHOLDER_USE_ENV_VAR");
-        // 环境变量不一定存在，测试应抛异常或通过（取决于环境）
-        // 在无 EDP_AGENT_MODEL_API_KEY 环境变量时应抛异常
+        EdpaSpringBootConfig.ModelConfig model = createValidModelConfig();
+        model.setApiKey("");
         try {
-            EdpConfigValidator.validateModelConfig(config);
-            // 如果环境变量恰好存在则通过，否则以下断言生效
+            EdpConfigValidator.validateModelConfig(model);
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("apiKey missing"), "PLACEHOLDER apiKey 无环境变量时应 fail-fast");
+            assertTrue(e.getMessage().contains("apiKey missing"), "空 apiKey 无环境变量时应 fail-fast");
         }
     }
 
     @Test
     void testValidateModelConfig_ValidApiKey() {
-        EdpAgentConfig config = createValidModelConfig();
-        config.getModel().setApiKey("real-api-key-12345");
-        assertDoesNotThrow(() -> EdpConfigValidator.validateModelConfig(config), "有效 apiKey 应通过校验");
+        EdpaSpringBootConfig.ModelConfig model = createValidModelConfig();
+        model.setApiKey("real-api-key-12345");
+        assertDoesNotThrow(() -> EdpConfigValidator.validateModelConfig(model), "有效 apiKey 应通过校验");
     }
 
     // ── Versatile URL 校验 ──
 
     @Test
     void testValidateVersatileUrl_ValidHttp() {
-        EdpAgentConfig config = createValidModelConfig();
-        EdpAgentConfig.Versatile versatile = new EdpAgentConfig.Versatile();
+        EdpaSpringBootConfig.VersatileConfig versatile = new EdpaSpringBootConfig.VersatileConfig();
         versatile.setUrl("http://localhost:30001/v1/0/agent-manager/workflows/{workflow_id}");
-        config.setVersatile(versatile);
-        assertDoesNotThrow(() -> EdpConfigValidator.validateVersatileUrl(config), "http URL 应通过校验");
+        assertDoesNotThrow(() -> EdpConfigValidator.validateVersatileUrl(versatile), "http URL 应通过校验");
     }
 
     @Test
     void testValidateVersatileUrl_ValidHttps() {
-        EdpAgentConfig config = createValidModelConfig();
-        EdpAgentConfig.Versatile versatile = new EdpAgentConfig.Versatile();
+        EdpaSpringBootConfig.VersatileConfig versatile = new EdpaSpringBootConfig.VersatileConfig();
         versatile.setUrl("https://api.example.com/v1/workflows");
-        config.setVersatile(versatile);
-        assertDoesNotThrow(() -> EdpConfigValidator.validateVersatileUrl(config), "https URL 应通过校验");
+        assertDoesNotThrow(() -> EdpConfigValidator.validateVersatileUrl(versatile), "https URL 应通过校验");
     }
 
     @Test
     void testValidateVersatileUrl_InvalidUrl() {
-        EdpAgentConfig config = createValidModelConfig();
-        EdpAgentConfig.Versatile versatile = new EdpAgentConfig.Versatile();
+        EdpaSpringBootConfig.VersatileConfig versatile = new EdpaSpringBootConfig.VersatileConfig();
         versatile.setUrl("ftp://invalid-url");
-        config.setVersatile(versatile);
         assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateVersatileUrl(config),
+                () -> EdpConfigValidator.validateVersatileUrl(versatile),
                 "非 http/https URL 应 fail-fast");
     }
 
     @Test
     void testValidateVersatileUrl_NullVersatile() {
-        EdpAgentConfig config = createValidModelConfig();
-        assertDoesNotThrow(() -> EdpConfigValidator.validateVersatileUrl(config), "null versatile 应通过");
+        assertDoesNotThrow(() -> EdpConfigValidator.validateVersatileUrl(null), "null versatile 应通过");
     }
 
     @Test
     void testValidateVersatileUrl_Placeholder() {
-        EdpAgentConfig config = createValidModelConfig();
-        EdpAgentConfig.Versatile versatile = new EdpAgentConfig.Versatile();
+        EdpaSpringBootConfig.VersatileConfig versatile = new EdpaSpringBootConfig.VersatileConfig();
         versatile.setUrl("${EDP_AGENT_VERSATILE_URL}");
-        config.setVersatile(versatile);
-        // ${ 开头的 URL 需要环境变量
         try {
-            EdpConfigValidator.validateVersatileUrl(config);
+            EdpConfigValidator.validateVersatileUrl(versatile);
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("placeholder") || e.getMessage().contains("env var"),
                     "占位符 URL 无环境变量时应 fail-fast");
@@ -175,13 +161,11 @@ class EdpConfigValidatorTest {
 
     @Test
     void testValidateScenarioConfig_ExistingWealthDemo() {
-        // 使用实际场景目录路径
         Path scenarioHome = Path.of("../scenarios/wealth-demo").toAbsolutePath().normalize();
         if (Files.exists(scenarioHome)) {
             assertDoesNotThrow(() -> EdpConfigValidator.validateScenarioConfig(scenarioHome),
                     "wealth-demo 场景目录应通过校验");
         } else {
-            // 如果从 test 目录运行时路径不同，跳过
             System.out.println("SKIP: wealth-demo scenario directory not found at " + scenarioHome);
         }
     }
@@ -234,14 +218,12 @@ class EdpConfigValidatorTest {
 
     // ── 工具方法 ──
 
-    private EdpAgentConfig createValidModelConfig() {
-        EdpAgentConfig config = new EdpAgentConfig();
-        EdpAgentConfig.Model model = new EdpAgentConfig.Model();
+    private EdpaSpringBootConfig.ModelConfig createValidModelConfig() {
+        EdpaSpringBootConfig.ModelConfig model = new EdpaSpringBootConfig.ModelConfig();
         model.setProvider("OpenAI");
         model.setName("deepseek-v4-pro");
         model.setBaseUrl("https://api.deepseek.com/v1");
         model.setApiKey("test-api-key");
-        config.setModel(model);
-        return config;
+        return model;
     }
 }

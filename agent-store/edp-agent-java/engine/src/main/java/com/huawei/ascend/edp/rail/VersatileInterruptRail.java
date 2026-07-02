@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.channel.ToolDataKey;
 import com.huawei.ascend.edp.channel.ToolDataKeyFactory;
-import com.huawei.ascend.edp.config.EdpAgentConfig;
+import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.ScriptConstants;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
@@ -66,7 +66,7 @@ public class VersatileInterruptRail extends AgentRail {
      */
     private final EdpConfig edpConfig;
 
-    private final EdpAgentConfig.Versatile versatileConfig;
+    private final EdpaSpringBootConfig.VersatileConfig versatileConfig;
     private final ToolDataChannel toolDataChannel;
     /** 与 EdpaRuntimeHandler 共享，存放 adapter 返回的完整 Versatile message JSON。 */
     private final VersatilePassthroughBuffer passthroughBuffer;
@@ -81,16 +81,16 @@ public class VersatileInterruptRail extends AgentRail {
         this(edpConfig, null, new ToolDataChannel());
     }
 
-    public VersatileInterruptRail(EdpConfig edpConfig, EdpAgentConfig.Versatile versatileConfig) {
+    public VersatileInterruptRail(EdpConfig edpConfig, EdpaSpringBootConfig.VersatileConfig versatileConfig) {
         this(edpConfig, versatileConfig, new ToolDataChannel());
     }
 
-    public VersatileInterruptRail(EdpConfig edpConfig, EdpAgentConfig.Versatile versatileConfig,
+    public VersatileInterruptRail(EdpConfig edpConfig, EdpaSpringBootConfig.VersatileConfig versatileConfig,
             ToolDataChannel toolDataChannel) {
         this(edpConfig, versatileConfig, toolDataChannel, new VersatilePassthroughBuffer());
     }
 
-    public VersatileInterruptRail(EdpConfig edpConfig, EdpAgentConfig.Versatile versatileConfig,
+    public VersatileInterruptRail(EdpConfig edpConfig, EdpaSpringBootConfig.VersatileConfig versatileConfig,
             ToolDataChannel toolDataChannel, VersatilePassthroughBuffer passthroughBuffer) {
         this.edpConfig = edpConfig;
         this.versatileConfig = versatileConfig;

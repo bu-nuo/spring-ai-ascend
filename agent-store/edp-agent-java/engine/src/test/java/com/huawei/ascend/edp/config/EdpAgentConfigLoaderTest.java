@@ -19,7 +19,7 @@ class EdpAgentConfigLoaderTest {
         if (Files.exists(yamlPath)) {
             EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
             assertNotNull(config, "加载结果不应为 null");
-            assertEquals("edp-agent", config.getName(), "名称应为 edp-agent");
+            assertNull(config.getName(), "元数据已注释，name 应为 null");
         } else {
             System.out.println("SKIP: edp-agent.yaml not found at " + yamlPath);
         }
@@ -30,9 +30,8 @@ class EdpAgentConfigLoaderTest {
         Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
         if (Files.exists(yamlPath)) {
             EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getModel(), "model 不应为 null");
-            assertEquals("PLACEHOLDER_USE_ENV_VAR", config.getModel().getApiKey(),
-                    "apiKey 应为 PLACEHOLDER_USE_ENV_VAR（密钥外部化机制）");
+            // model/versatile 已迁移至 application.yml (EdpaSpringBootConfig)，edp-agent.yaml 中已注释
+            assertNull(config.getModel(), "model 已迁出，应为 null");
         } else {
             System.out.println("SKIP: edp-agent.yaml not found");
         }
@@ -43,51 +42,8 @@ class EdpAgentConfigLoaderTest {
         Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
         if (Files.exists(yamlPath)) {
             EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getVersatile(), "versatile 不应为 null");
-            assertTrue(config.getVersatile().getUrl().startsWith("http://"),
-                    "versatile URL 应以 http:// 开头（不使用 ${...} 占位符）");
-        } else {
-            System.out.println("SKIP: edp-agent.yaml not found");
-        }
-    }
-
-    @Test
-    void testLoad_EmptySystemPrompt() {
-        Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
-        if (Files.exists(yamlPath)) {
-            EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getPrompt(), "prompt 不应为 null");
-            assertEquals("", config.getPrompt().getSystem(),
-                    "系统提示词应为空（动态生成，由 ScenarioPromptBuilder 拼接）");
-        } else {
-            System.out.println("SKIP: edp-agent.yaml not found");
-        }
-    }
-
-    @Test
-    void testLoad_EmptySkillDirectories() {
-        Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
-        if (Files.exists(yamlPath)) {
-            EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getSkills(), "skills 不应为 null");
-            assertEquals(0, config.getSkills().getDirectories().size(),
-                    "skills.directories 应为空列表（方案 B：从 scenarioHome 动态加载）");
-        } else {
-            System.out.println("SKIP: edp-agent.yaml not found");
-        }
-    }
-
-    @Test
-    void testLoad_FrameworkOptions() {
-        Path yamlPath = Path.of("src/main/resources/edp-agent.yaml").toAbsolutePath();
-        if (Files.exists(yamlPath)) {
-            EdpAgentConfig config = EdpAgentConfigLoader.load(yamlPath);
-            assertNotNull(config.getFramework(), "framework 不应为 null");
-            assertNotNull(config.getFramework().getOptions(), "options 不应为 null");
-            assertTrue(config.getFramework().getOptions().getMaxIterations() > 0,
-                    "maxIterations 应大于 0");
-            assertTrue(config.getFramework().getOptions().isEnableTaskLoop(),
-                    "enableTaskLoop 应为 true");
+            // versatile 已迁移至 application.yml (EdpaSpringBootConfig)，edp-agent.yaml 中已注释
+            assertNull(config.getVersatile(), "versatile 已迁出，应为 null");
         } else {
             System.out.println("SKIP: edp-agent.yaml not found");
         }

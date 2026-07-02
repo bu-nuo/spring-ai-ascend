@@ -16,13 +16,13 @@ planrule:
   # Agent职责边界
   scope:
     # 允许的业务范围列表
-    allowed: " "
+    allowed: ""
 
     # 禁止的业务范围列表
-    denied: " "
+    denied: ""
 
     # 超出业务范围时的提示消息
-    out_of_scope_message: "尚在学习中，暂不支持该业务"
+    out_of_scope_message: "当前请求暂不在可处理范围内。"
 
   # 补充提示词
   supplementary_prompt:

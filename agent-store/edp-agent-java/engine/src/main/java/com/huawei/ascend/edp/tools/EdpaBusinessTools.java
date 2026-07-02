@@ -1,9 +1,12 @@
 package com.huawei.ascend.edp.tools;
 
+import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.openjiuwen.core.foundation.tool.Tool;
 import com.openjiuwen.core.foundation.tool.ToolCard;
 import com.openjiuwen.core.foundation.tool.function.LocalFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,18 +48,47 @@ public final class EdpaBusinessTools {
     private EdpaBusinessTools() {
     }
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(EdpaBusinessTools.class);
+
     /**
-     * 构造 EDPAgent 内置业务工具列表。
+     * 构造 EDPAgent 内置业务工具列表，按 actrule.allowed_tools 配置驱动注册。
      *
-     * @param edpConfig EDP 专有配置
-     * @return 工具列表，包含 call_mcp、call_versatile、ask_user、cancel_task
+     * <p>注册逻辑：</p>
+     * <ol>
+     *     <li>从 actrule.allowed_tools 读取允许的工具名称列表</li>
+     *     <li>跳过 DeepAgent 原生工具（bash、skill_tool）</li>
+     *     <li>通过 {@link EdpaToolRegistry} 按名称查找对应构建器并实例化</li>
+     *     <li>场景级可通过叠加 actrule.allowed_tools 新增自己的工具（未来 SPI 扩展）</li>
+     * </ol>
+     *
+     * @param edpConfig EDP 专有配置，用于动态生成 lite_todo_write 的 step_id 枠举
+     * @param actrule 行为治理配置（从 actrule.yaml 加载），包含 allowed_tools 列表
+     * @return 工具列表，顺序与 allowed_tools 一致
      */
-    public static List<Tool> build(EdpConfig edpConfig) {
+    public static List<Tool> build(EdpConfig edpConfig, ActRuleConfig actrule) {
         List<Tool> tools = new ArrayList<>();
-        tools.add(CallMcpTool.build());
-        tools.add(CallVersatileTool.build());
-        tools.add(EnhancedAskUserTool.build());
-        tools.add(CancelTaskTool.build());
+
+        if (actrule == null || actrule.getAllowedTools() == null || actrule.getAllowedTools().isEmpty()) {
+            LOGGER.info("No allowed_tools configured in actrule, registering no business tools");
+            return tools;
+        }
+
+        for (String toolName : actrule.getAllowedTools()) {
+            // 跳过框架内部自动注册的工具（Core 框架 / DeepAgent 原生工具）
+            if ("bash".equals(toolName) || "skill_tool".equals(toolName)
+                    || "todo_create".equals(toolName) || "todo_modify".equals(toolName)
+                    || "todo_list".equals(toolName) || "todo_get".equals(toolName)) {
+                continue;
+            }
+
+            Tool tool = EdpaToolRegistry.build(toolName, edpConfig);
+            if (tool != null) {
+                tools.add(tool);
+                LOGGER.debug("Registered business tool: {}", toolName);
+            } else {
+                LOGGER.warn("Unknown tool in allowed_tools: {}, skipping", toolName);
+            }
+        }
         return tools;
     }
 

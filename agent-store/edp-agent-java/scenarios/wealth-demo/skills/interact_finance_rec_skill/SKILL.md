@@ -112,4 +112,4 @@ call_versatile(
 - 禁止编造产品信息，只展示工具返回的真实数据
 - 不要替用户做出选择，那是 `product_select_skill` 的职责
 - 最多 10 轮推荐，超过后主动终止并告知用户"已为您推荐多轮产品，如需继续请重新开始推荐"
-- 鉴权参数、`env_vars` 由 MCPInterruptRail 自动注入，禁止在 `script_params` 中传递；`empty_result_template_key` 必须由 LLM 传入
+- 鉴权参数（MCP_SERVER_URL、MCP_ACCESS_TOKEN、MCP_APP_NAME）由 McpInterruptRail 通过 ProcessBuilder 环境变量自动注入 Python 子进程，禁止在 `script_params` 中传递；`empty_result_template_key` 必须由 LLM 传入

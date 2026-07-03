@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huawei.ascend.edp.channel.ToolDataChannel;
 import com.huawei.ascend.edp.channel.ToolDataKey;
 import com.huawei.ascend.edp.channel.ToolDataKeyFactory;
+import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.ScriptConstants;
 import com.openjiuwen.core.foundation.llm.schema.ToolMessage;
@@ -43,19 +44,26 @@ public class McpInterruptRail extends AgentRail {
     private final EdpConfig edpConfig;
     private final ToolDataChannel toolDataChannel;
     private final Path skillsDir;
+    private final EdpaSpringBootConfig springBootConfig;
 
     public McpInterruptRail(EdpConfig edpConfig) {
-        this(edpConfig, new ToolDataChannel(), null);
+        this(edpConfig, new ToolDataChannel(), null, null);
     }
 
     public McpInterruptRail(EdpConfig edpConfig, ToolDataChannel toolDataChannel) {
-        this(edpConfig, toolDataChannel, null);
+        this(edpConfig, toolDataChannel, null, null);
     }
 
     public McpInterruptRail(EdpConfig edpConfig, ToolDataChannel toolDataChannel, Path skillsDir) {
+        this(edpConfig, toolDataChannel, skillsDir, null);
+    }
+
+    public McpInterruptRail(EdpConfig edpConfig, ToolDataChannel toolDataChannel, Path skillsDir,
+            EdpaSpringBootConfig springBootConfig) {
         this.edpConfig = edpConfig;
         this.toolDataChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();
         this.skillsDir = skillsDir != null ? skillsDir.toAbsolutePath().normalize() : null;
+        this.springBootConfig = springBootConfig;
         setPriority(85);
     }
 
@@ -149,6 +157,27 @@ public class McpInterruptRail extends AgentRail {
             }
             builder.environment().put("SKILL_INPUT", argumentsJson);
             builder.environment().put("PYTHONIOENCODING", "utf-8");
+
+            // ---- MCP SSE 配置注入 + 灰度路由 ----
+            String wapGrayFlag = extractWapGrayFlag(scriptParams);
+            if (springBootConfig != null && springBootConfig.getMcpsse() != null) {
+                var mcpConfig = springBootConfig.getMcpsse();
+                String mcpServerUrl = (wapGrayFlag != null && wapGrayFlag.startsWith("JD"))
+                        ? mcpConfig.getMasterUrl() : mcpConfig.getStandbyUrl();
+                if (mcpServerUrl != null) {
+                    builder.environment().put("MCP_SERVER_URL", mcpServerUrl);
+                }
+                if (mcpConfig.getAccessToken() != null) {
+                    builder.environment().put("MCP_ACCESS_TOKEN", mcpConfig.getAccessToken());
+                }
+                if (mcpConfig.getAppName() != null) {
+                    builder.environment().put("MCP_APP_NAME", mcpConfig.getAppName());
+                }
+                LOGGER.info("McpInterruptRail: MCP SSE env injected, wapGrayFlag={}, serverUrl={}",
+                        wapGrayFlag, mcpServerUrl);
+            }
+            // ---- MCP SSE 配置注入结束 ----
+
             LOGGER.info("McpInterruptRail: execute script command={}, workDir={}", command, workDir);
 
             Process process = builder.start();
@@ -419,5 +448,35 @@ public class McpInterruptRail extends AgentRail {
 
     private String abbreviate(String value) {
         return value != null && value.length() > 500 ? value.substring(0, 500) + "...(truncated)" : value;
+    }
+
+    /**
+     * 从 script_params 中提取 wap_grayFlag。
+     *
+     * <p>mcp_required_params 在运行时可能是 String（Python dict repr 单引号格式）
+     * 或已解析的 Map&lt;String,Object&gt;。两种类型均需处理。</p>
+     */
+    private String extractWapGrayFlag(Map<String, Object> scriptParams) {
+        Object mcpRequired = scriptParams.get("mcp_required_params");
+        if (mcpRequired instanceof String mcpRequiredStr) {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("wap_grayFlag['\"]\\s*:\\s*['\"]([^'\"]+)")
+                    .matcher(mcpRequiredStr);
+            if (m.find()) {
+                return m.group(1);
+            }
+        } else if (mcpRequired instanceof Map<?, ?> mcpRequiredMap) {
+            Object customData = mcpRequiredMap.get("custom_data");
+            if (customData instanceof Map<?, ?> cd) {
+                Object inputs = cd.get("inputs");
+                if (inputs instanceof Map<?, ?> in) {
+                    Object flag = in.get("wap_grayFlag");
+                    if (flag != null) {
+                        return flag.toString();
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

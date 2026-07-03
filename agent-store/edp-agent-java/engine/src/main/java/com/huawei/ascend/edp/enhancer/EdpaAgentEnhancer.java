@@ -244,7 +244,7 @@ public class EdpaAgentEnhancer {
         // 执行限制 Rail 负责阻断失控循环。
         rails.add(new ExecutionLimitRail(actrule));
         // MCP / VA / ask_user Rail 负责工具调用前后的业务中断和参数增强。
-        rails.add(new McpInterruptRail(edpConfig, sharedChannel, skillsDir));
+        rails.add(new McpInterruptRail(edpConfig, sharedChannel, skillsDir, springBootConfig));
         rails.add(new VersatileInterruptRail(edpConfig, springBootConfig != null ? springBootConfig.getVersatile() : null,
                 sharedChannel, sharedPassthroughBuffer));
         rails.add(new AskUserTemplateRail(edpConfig, scripts));

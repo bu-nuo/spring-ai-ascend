@@ -26,3 +26,8 @@ edpa:
       headers:
         content-type: application/json
         stream: "true"
+    mcpsse:
+      master-url: ${EDP_MCP_MASTER_URL:}
+      standby-url: ${EDP_MCP_STANDBY_URL:}
+      access-token: ${EDP_MCP_ACCESS_TOKEN:}
+      app-name: ${EDP_MCP_APP_NAME:}

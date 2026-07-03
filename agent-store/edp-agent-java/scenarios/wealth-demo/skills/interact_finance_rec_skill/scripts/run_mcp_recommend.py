@@ -111,24 +111,12 @@ def run_mcp_recommend(skill_input: Dict[str, Any]) -> Dict[str, Any]:
     history_info = skill_input.get("history_info", [])
     history_params = skill_input.get("history_params", {})
     mcp_required_params = parse_mcp_required_params(mcp_required_params_str)
-    
-    # ---- 参数打印（调试阶段） ----
-    log_info(f"[run_mcp_recommend enter] mcp_params: {json.dumps(mcp_params, ensure_ascii=False)}")
-    log_info(f"[run_mcp_recommend enter] mcp_required_params: {json.dumps(mcp_required_params, ensure_ascii=False)}")
-    log_info(f"[run_mcp_recommend enter] history_info: {json.dumps(history_info, ensure_ascii=False)}")
-    log_info(f"[run_mcp_recommend enter] history_params: {json.dumps(history_params, ensure_ascii=False)}")
-    log_info(f"[run_mcp_recommend enter] 环境变量 MCP_MASTER_URL: {os.environ.get('MCP_MASTER_URL', '')}")
-    log_info(f"[run_mcp_recommend enter] 环境变量 MCP_STANDBY_URL: {os.environ.get('MCP_STANDBY_URL', '')}")
-    log_info(f"[run_mcp_recommend enter] 环境变量 MCP_ACCESS_TOKEN: {os.environ.get('MCP_ACCESS_TOKEN', '')[:8]}...")
-    log_info(f"[run_mcp_recommend enter] 环境变量 MCP_PRODUCT_LIST_TOOL_NAME: {os.environ.get('MCP_PRODUCT_LIST_TOOL_NAME', '')}")
-    # ---- 参数打印结束 ----
-
     merged_params = merge_recommend_params(history_params, mcp_params)
     log_info(f"run_mcp_recommend: merge_recommend_params, history_params:{history_params}, current_param:{mcp_params}, final_param:{merged_params}")
     products = []
     mcp_error = None
 
-    requester = MCPSSERequester.from_skill_input(skill_input,mcp_required_params)
+    requester = MCPSSERequester.from_skill_input(skill_input)
     if requester is not None:
         call_params = build_mcp_call_params(merged_params, mcp_required_params)
         log_info(f"run_mcp_recommend: build_mcp_call_params, merged_params:{merged_params}, mcp_required_params:{mcp_required_params}, final_param:{call_params}")

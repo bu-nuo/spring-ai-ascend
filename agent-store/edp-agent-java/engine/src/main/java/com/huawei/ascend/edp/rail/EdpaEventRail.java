@@ -6,6 +6,7 @@ import com.huawei.ascend.edp.config.ScriptResolver;
 import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.config.ToolConstants;
 import com.huawei.ascend.edp.enhancer.TodoSessionResolver;
+import com.huawei.ascend.edp.todo.RedisTodoStore;
 import com.openjiuwen.core.foundation.llm.schema.AssistantMessage;
 import com.openjiuwen.core.foundation.llm.schema.ToolCall;
 import com.openjiuwen.core.singleagent.rail.AgentCallbackContext;
@@ -23,12 +24,16 @@ import com.openjiuwen.harness.tools.TodoTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 /**
  * EDPAgent 思维链事件发射 Rail。
@@ -138,13 +143,24 @@ public class EdpaEventRail extends DeepAgentRail {
     /** lazy 创建 TodoTool，路径与 Core TaskPlanningRail / EdpaTodoRail 一致（.todo）。 */
     private volatile TodoTool todoTool;
 
+    /** .todo 根目录路径（getTodoTool 成功时缓存，cleanupTodoDir 优先用此路径，避免 afterInvoke 时 workspace 已释放）。 */
+    private volatile Path todoRootPath;
+
+    /** Redis Todo 存储（UC-04 主路径；可为 null：单测兼容、未启用 Redis 时回落文件）。 */
+    private final RedisTodoStore redisTodoStore;
+
     public EdpaEventRail(DeepAgent deepAgent) {
-        this(deepAgent, null);
+        this(deepAgent, null, null);
     }
 
     public EdpaEventRail(DeepAgent deepAgent, SysScriptsConfig scripts) {
+        this(deepAgent, scripts, null);
+    }
+
+    public EdpaEventRail(DeepAgent deepAgent, SysScriptsConfig scripts, RedisTodoStore redisTodoStore) {
         this.deepAgent = deepAgent;
         this.scripts = scripts;
+        this.redisTodoStore = redisTodoStore;
     }
 
     @Override
@@ -167,6 +183,13 @@ public class EdpaEventRail extends DeepAgentRail {
     public void beforeInvoke(AgentCallbackContext ctx) {
         String sid = sessionId(ctx);
         conversationClosed.remove(sid);
+        // 会话开始时 workspace 一定就绪，提前缓存 .todo 根目录路径
+        if (todoRootPath == null) {
+            getTodoTool();
+        }
+        // ★ 方案 B：清理非当前会话的旧 .todo 残留目录（避免文件无限堆积）
+        // 在 beforeInvoke 时清理，不影响多轮会话中的文件读取（只清理别的会话目录）
+        cleanupStaleTodoDirs(sid);
         LOGGER.info("[EDPA-DIAG] beforeInvoke sid={}, todosAtStart={} -> emit conversation_start (no cross-round todolist, Rule 9)",
                 sid, diagTodosSummary(ctx));
         emit(ctx, EdpaEventType.CONVERSATION_START, Map.of());
@@ -507,6 +530,102 @@ public class EdpaEventRail extends DeepAgentRail {
         toolOpen.remove(sid);
         conversationClosed.remove(sid);
         prevTodoStatus.remove(sid);
+        // ★ 方案 B：会话正常结束（非中断挂起）时清理 Core TodoTool 落盘的 .todo/<sid>/ 目录，
+        // 避免 .todo/ 无限堆积。interruptActive=true 表示本轮是 ask_user 中断等待，下一轮还会继续，
+        // 不能清理。仅当会话真正结束（无中断挂起）时清理。
+        // 注意：多轮会话中每轮 afterInvoke 都会调用，但无法判断是否是最后一轮。
+        // 改为在 beforeInvoke 时清理上次会话残留（见 beforeInvoke），不在 afterInvoke 清理。
+        if (!interruptActive.getOrDefault(sid, false)) {
+            interruptActive.remove(sid);
+            interruptIdMap.remove(sid);
+        }
+    }
+
+    /**
+     * 清理 Core TodoTool 落盘的 .todo/<转义sid>/ 目录（方案 B）。
+     *
+     * <p>Core TaskPlanningRail 在 todo_create/todo_modify 时会向 .todo/<sid>/todo.json 落盘，
+     * 此处无法去除（二进制依赖）。会话结束后该目录不再需要，清理以避免 .todo/ 无限堆积。
+     * 清理失败不影响会话流程（只 log warn）。</p>
+     *
+     * @param rawSid 原始 sessionId（含冒号等非法路径字符，需转义）
+     */
+    private void cleanupTodoDir(String rawSid) {
+        // 优先用缓存的 todoRootPath（getTodoTool 成功时缓存），避免 afterInvoke 时 workspace 已释放
+        Path todoRoot = todoRootPath;
+        if (todoRoot == null && deepAgent != null) {
+            try {
+                todoRoot = deepAgent.getWorkspace().root().resolve(".todo");
+            } catch (Exception e) {
+                LOGGER.warn("[EDPA-DIAG] cleanupTodoDir sid={} failed: workspace unavailable, {}", rawSid, e.getMessage());
+                return;
+            }
+        }
+        if (todoRoot == null) {
+            return;
+        }
+        try {
+            if (!Files.exists(todoRoot)) {
+                return;
+            }
+            String safeSid = TodoSessionResolver.sanitizeSessionId(rawSid);
+            Path sessionDir = todoRoot.resolve(safeSid);
+            if (!Files.exists(sessionDir)) {
+                return;
+            }
+            try (Stream<Path> walk = Files.walk(sessionDir)) {
+                walk.sorted(java.util.Collections.reverseOrder())
+                        .forEach(p -> {
+                            try {
+                                Files.deleteIfExists(p);
+                            } catch (Exception ignored) {
+                            }
+                        });
+            }
+            LOGGER.info("[EDPA-DIAG] cleanupTodoDir sid={} -> deleted {}", rawSid, sessionDir);
+        } catch (Exception e) {
+            LOGGER.warn("[EDPA-DIAG] cleanupTodoDir sid={} failed: {}", rawSid, e.getMessage());
+        }
+    }
+
+    /**
+     * 清理除当前会话外的所有 .todo/<sid>/ 残留目录（方案 B 改进版）。
+     *
+     * <p>在 beforeInvoke 时调用，只清理非当前 sid 的旧目录，不影响当前会话的文件读取。
+     * 这样既避免文件无限堆积，又不破坏多轮会话中的 todo_modify 文件同步。</p>
+     */
+    private void cleanupStaleTodoDirs(String currentRawSid) {
+        Path todoRoot = todoRootPath;
+        if (todoRoot == null && deepAgent != null) {
+            try {
+                todoRoot = deepAgent.getWorkspace().root().resolve(".todo");
+            } catch (Exception e) {
+                return;
+            }
+        }
+        if (todoRoot == null || !Files.exists(todoRoot)) {
+            return;
+        }
+        String currentSafeSid = TodoSessionResolver.sanitizeSessionId(currentRawSid);
+        try (Stream<Path> dirs = Files.list(todoRoot)) {
+            dirs.filter(Files::isDirectory)
+                    .filter(d -> !d.getFileName().toString().equals(currentSafeSid))
+                    .forEach(sessionDir -> {
+                        try (Stream<Path> walk = Files.walk(sessionDir)) {
+                            walk.sorted(java.util.Collections.reverseOrder())
+                                    .forEach(p -> {
+                                        try {
+                                            Files.deleteIfExists(p);
+                                        } catch (Exception ignored) {
+                                        }
+                                    });
+                            LOGGER.info("[EDPA-DIAG] cleanupStaleTodoDirs -> deleted {}", sessionDir);
+                        } catch (Exception ignored) {
+                        }
+                    });
+        } catch (Exception e) {
+            LOGGER.debug("[EDPA-DIAG] cleanupStaleTodoDirs failed: {}", e.getMessage());
+        }
     }
 
     // ═══════════════════════════════════════════════════
@@ -651,7 +770,12 @@ public class EdpaEventRail extends DeepAgentRail {
     private void emitTodoEvents(AgentCallbackContext ctx) {
         List<TodoItem> todos = loadCurrentTodos(ctx);
         if (todos == null || todos.isEmpty()) {
-            LOGGER.info("[EDPA-DIAG] emitTodoEvents todos 为空, 跳过");
+            // ★ UC-26: 空列表仍发射 todolist_start → todolist_end 配对（无 item），保证事件配对完整
+            LOGGER.info("[EDPA-DIAG] emitTodoEvents todos 为空, 发射空 todolist 配对 (UC-26)");
+            emit(ctx, EdpaEventType.TODOLIST_START, Map.of("content",
+                    scripts != null ? ScriptResolver.todolistStart(scripts) : ""));
+            emit(ctx, EdpaEventType.TODOLIST_END, Map.of("content",
+                    scripts != null ? ScriptResolver.todolistEnd(scripts) : ""));
             return;
         }
 
@@ -809,18 +933,32 @@ public class EdpaEventRail extends DeepAgentRail {
      */
     private List<TodoItem> loadCurrentTodos(AgentCallbackContext ctx) {
         String rawSid = sessionId(ctx);
+        // ★ Redis 唯一数据源：只从 Redis 读取（EdpaTodoRail 在 todo_create/todo_modify 后
+        // 已将 Core 写入的文件数据同步到 Redis 并删除文件）
+        if (redisTodoStore != null) {
+            List<TodoItem> todos = redisTodoStore.load(rawSid);
+            int size = todos == null ? 0 : todos.size();
+            LOGGER.info("[EDPA-DIAG] LOAD_CURRENT_TODOS source=REDIS session={} items={}", rawSid, size);
+            return todos != null ? todos : new ArrayList<>();
+        }
+        // 兜底：未启用 Redis 时回落文件（单测兼容、旧部署）
         String sid = TodoSessionResolver.sanitizeSessionId(rawSid);
         TodoTool tool = getTodoTool();
         if (tool != null) {
             try {
                 List<TodoItem> todos = tool.load(sid);
+                int size = todos == null ? 0 : todos.size();
+                LOGGER.info("[EDPA-DIAG] LOAD_CURRENT_TODOS source=FILE session={} items={}", rawSid, size);
                 return todos != null ? todos : new ArrayList<>();
             } catch (Exception e) {
                 LOGGER.debug("EdpaEventRail.loadCurrentTodos from disk failed: {}", e.getMessage());
             }
         }
         // 兜底：TodoTool 不可用时从 TaskPlanningRail 缓存读
-        return loadFromTaskPlanningCache(rawSid);
+        List<TodoItem> cached = loadFromTaskPlanningCache(rawSid);
+        int cacheSize = cached == null ? 0 : cached.size();
+        LOGGER.info("[EDPA-DIAG] LOAD_CURRENT_TODOS source=CACHE session={} items={}", rawSid, cacheSize);
+        return cached;
     }
 
     /**
@@ -843,14 +981,16 @@ public class EdpaEventRail extends DeepAgentRail {
         return null;
     }
 
-    /** lazy 创建 TodoTool，路径与 Core TaskPlanningRail / EdpaTodoRail 一致（.todo）。 */
+    /** lazy 创建 TodoTool，路径与 Core TaskPlanningRail / EdpaTodoRail 一致（.todo）。同时缓存 .todo 根目录路径。 */
     private TodoTool getTodoTool() {
         if (todoTool != null) {
             return todoTool;
         }
         try {
-            String todoPath = deepAgent.getWorkspace().root().resolve(".todo").toString();
-            todoTool = new TodoTool(todoPath);
+            Path root = deepAgent.getWorkspace().root();
+            Path todoDir = root.resolve(".todo");
+            todoRootPath = todoDir;
+            todoTool = new TodoTool(todoDir.toString());
             return todoTool;
         } catch (Exception e) {
             LOGGER.warn("EdpaEventRail failed to create TodoTool: {}", e.getMessage());

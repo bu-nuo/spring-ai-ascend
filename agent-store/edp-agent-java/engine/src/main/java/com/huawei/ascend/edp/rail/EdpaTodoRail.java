@@ -1,5 +1,6 @@
 package com.huawei.ascend.edp.rail;
 
+import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.ScriptConstants;
 import com.huawei.ascend.edp.config.ToolConstants;
 import com.huawei.ascend.edp.config.EdpaTodolist;
@@ -81,12 +82,16 @@ public class EdpaTodoRail extends DeepAgentRail {
 
     private final EdpaTodolist todolist;
 
+    /** 行为治理配置，提供 max_subtasks 等执行约束。 */
+    private final ActRuleConfig actrule;
+
     /** TodoTool 实例（lazy 创建，路径与 Core TaskPlanningRail 一致：.todo）。 */
     private volatile TodoTool todoTool;
 
-    public EdpaTodoRail(DeepAgent deepAgent, EdpaTodolist todolist) {
+    public EdpaTodoRail(DeepAgent deepAgent, EdpaTodolist todolist, ActRuleConfig actrule) {
         this.deepAgent = deepAgent;
         this.todolist = todolist;
+        this.actrule = actrule;
     }
 
     @Override
@@ -188,6 +193,24 @@ public class EdpaTodoRail extends DeepAgentRail {
             enriched = enrichTasks(args.get("tasks"));
             if (enriched) {
                 LOGGER.info("[EDPA-DIAG] ENRICH tool=todo_create 已为 tasks[] 补全 meta_data.catalog_id 锚点");
+            }
+        }
+
+        // 子任务数量上限校验（actrule.max_subtasks）
+        if (actrule != null && actrule.getMaxSubtasks() != null && actrule.getMaxSubtasks() > 0
+                && TOOL_TODO_CREATE.equals(toolName)) {
+            int taskCount = countTasks(args.get("tasks"));
+            if (taskCount > actrule.getMaxSubtasks()) {
+                LOGGER.info("[EDPA-DIAG] MAX_SUBTASKS tool=todo_create taskCount={} > maxSubtasks={}, 拦截",
+                        taskCount, actrule.getMaxSubtasks());
+                ctx.getExtra().put(ScriptConstants.KEY_SKIP_TOOL, Boolean.TRUE);
+                String synthetic = "{\"error\":\"MAX_SUBTASKS_EXCEEDED\",\"message\":\"子任务数量 "
+                        + taskCount + " 超过上限 " + actrule.getMaxSubtasks() + "，请精简任务列表后重试。\"}";
+                inputs.setToolResult(synthetic);
+                ToolCall tc = inputs.getToolCall();
+                String callId = tc != null ? tc.getId() : "";
+                inputs.setToolMsg(ToolMessage.builder().content(synthetic).toolCallId(callId).build());
+                return;
             }
         }
 
@@ -580,6 +603,13 @@ public class EdpaTodoRail extends DeepAgentRail {
 
     private static String str(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private static int countTasks(Object tasksObj) {
+        if (tasksObj instanceof List<?> tasks) {
+            return tasks.size();
+        }
+        return 0;
     }
 
     /**

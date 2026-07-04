@@ -126,20 +126,8 @@ public class GovernanceConfig {
         if (scenarioActrule.getMaxSubtasks() != null) {
             this.actrule.setMaxSubtasks(scenarioActrule.getMaxSubtasks());
         }
-        if (scenarioActrule.getReplanEnabled() != null) {
-            this.actrule.setReplanEnabled(scenarioActrule.getReplanEnabled());
-        }
-        if (scenarioActrule.getMaxReplanCount() != null) {
-            this.actrule.setMaxReplanCount(scenarioActrule.getMaxReplanCount());
-        }
         if (scenarioActrule.getMaxSteps() != null) {
             this.actrule.setMaxSteps(scenarioActrule.getMaxSteps());
-        }
-        if (scenarioActrule.getRetryEnabled() != null) {
-            this.actrule.setRetryEnabled(scenarioActrule.getRetryEnabled());
-        }
-        if (scenarioActrule.getMaxRetryCount() != null) {
-            this.actrule.setMaxRetryCount(scenarioActrule.getMaxRetryCount());
         }
         if (scenarioActrule.getAllowedTools() != null) {
             // 叠加合并：框架工具 + 场景扩展工具，去重但保持顺序
@@ -169,7 +157,7 @@ public class GovernanceConfig {
     }
 
     /**
-     * 合成scriptconfig配置（替代式覆盖）。
+     * 合成scriptconfig配置（逐字段继承式覆盖）。
      */
     private void mergeScriptconfig(ScriptConfig scenarioScriptconfig) {
         if (this.scriptconfig == null) {
@@ -177,9 +165,9 @@ public class GovernanceConfig {
             return;
         }
 
-        // generalScripts: 替代式覆盖
+        // generalScripts: 继承式覆盖（逐字段合并，未被场景覆盖的字段继承框架默认值）
         if (scenarioScriptconfig.getGeneralScripts() != null) {
-            this.scriptconfig.setGeneralScripts(scenarioScriptconfig.getGeneralScripts());
+            mergeGeneralScripts(scenarioScriptconfig.getGeneralScripts());
         }
 
         // thinkChunkScripts: 继承式覆盖
@@ -212,6 +200,53 @@ public class GovernanceConfig {
         }
         if (scenarioConfirm.getCancelConfirm() != null) {
             target.setCancelConfirm(scenarioConfirm.getCancelConfirm());
+        }
+    }
+
+    /**
+     * 合并 generalScripts 配置（继承式覆盖，逐字段合并）。
+     */
+    private void mergeGeneralScripts(ScriptConfig.GeneralScripts scenarioScripts) {
+        if (this.scriptconfig.getGeneralScripts() == null) {
+            this.scriptconfig.setGeneralScripts(new ScriptConfig.GeneralScripts());
+        }
+        ScriptConfig.GeneralScripts target = this.scriptconfig.getGeneralScripts();
+
+        if (scenarioScripts.getToolStart() != null) {
+            target.setToolStart(scenarioScripts.getToolStart());
+        }
+        if (scenarioScripts.getToolEnd() != null) {
+            target.setToolEnd(scenarioScripts.getToolEnd());
+        }
+        if (scenarioScripts.getTodoStart() != null) {
+            target.setTodoStart(scenarioScripts.getTodoStart());
+        }
+        if (scenarioScripts.getTodoEnd() != null) {
+            target.setTodoEnd(scenarioScripts.getTodoEnd());
+        }
+        if (scenarioScripts.getTodolistStart() != null) {
+            target.setTodolistStart(scenarioScripts.getTodolistStart());
+        }
+        if (scenarioScripts.getTodolistEnd() != null) {
+            target.setTodolistEnd(scenarioScripts.getTodolistEnd());
+        }
+        if (scenarioScripts.getInterruptStart() != null) {
+            target.setInterruptStart(scenarioScripts.getInterruptStart());
+        }
+        if (scenarioScripts.getRequestStart() != null) {
+            target.setRequestStart(scenarioScripts.getRequestStart());
+        }
+        if (scenarioScripts.getPlanningStart() != null) {
+            target.setPlanningStart(scenarioScripts.getPlanningStart());
+        }
+        if (scenarioScripts.getTaskCancelled() != null) {
+            target.setTaskCancelled(scenarioScripts.getTaskCancelled());
+        }
+        if (scenarioScripts.getCancelConfirm() != null) {
+            target.setCancelConfirm(scenarioScripts.getCancelConfirm());
+        }
+        if (scenarioScripts.getOutOfScope() != null) {
+            target.setOutOfScope(scenarioScripts.getOutOfScope());
         }
     }
 

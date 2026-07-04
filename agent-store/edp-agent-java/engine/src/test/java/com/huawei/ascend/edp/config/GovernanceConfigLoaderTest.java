@@ -108,7 +108,6 @@ class GovernanceConfigLoaderTest {
         assertNotNull(config.getActrule(), "actrule配置应存在");
         assertEquals(50, config.getActrule().getMaxSubtasks(), "maxSubtasks字段应正确解析");
         assertEquals(100, config.getActrule().getMaxSteps(), "maxSteps字段应正确解析");
-        assertTrue(config.getActrule().getReplanEnabled(), "replanEnabled字段应正确解析");
         assertNotNull(config.getActrule().getAllowedTools(), "allowedTools列表应存在");
         assertTrue(config.getActrule().getAllowedTools().contains("bash"), "allowedTools应包含bash工具");
         assertEquals("all", config.getActrule().getSkillMode(), "skillMode应从actrule.yaml解析为all");
@@ -169,11 +168,10 @@ class GovernanceConfigLoaderTest {
         assertEquals(30, mergedConfig.getActrule().getMaxSubtasks(), "场景级maxSubtasks应覆盖框架级");
         // 未覆盖的字段应继承框架级默认值
         assertEquals(100, mergedConfig.getActrule().getMaxSteps(), "未覆盖的maxSteps应继承框架级默认值");
-        assertTrue(mergedConfig.getActrule().getReplanEnabled(), "未覆盖的replanEnabled应继承框架级默认值");
         assertEquals("auto_list", mergedConfig.getActrule().getSkillMode(), "场景级skillMode应覆盖框架级all为auto_list");
         
-        // 4. scriptconfig.generalScripts: 替代式覆盖
-        assertEquals("正在为您查询理财产品...", mergedConfig.getScriptconfig().getGeneralScripts().getToolStart(), "场景级toolStart应完全覆盖");
+        // 4. scriptconfig.generalScripts: 继承式覆盖
+        assertEquals("正在为您查询理财产品...", mergedConfig.getScriptconfig().getGeneralScripts().getToolStart(), "场景级toolStart应覆盖框架级");
         
         // 5. scriptconfig.thinkChunkScripts: 继承式覆盖
         assertEquals("real_stream", mergedConfig.getScriptconfig().getThinkChunkScripts().getThinkChunkMode(), "场景级thinkChunkMode应覆盖框架级");
@@ -208,8 +206,6 @@ class GovernanceConfigLoaderTest {
         // 创建actrule.yaml（使用snake_case字段名）
         String actruleYaml = "actrule:\n" +
                 "  max_subtasks: 25\n" +
-                "  replan_enabled: false\n" +
-                "  max_replan_count: 5\n" +
                 "  skill_mode: auto_list\n";
         Files.writeString(testDir.resolve("actrule.yaml"), actruleYaml);
         
@@ -219,8 +215,6 @@ class GovernanceConfigLoaderTest {
         // 验证snake_case字段映射
         assertNotNull(config.getActrule(), "actrule配置应存在");
         assertEquals(25, config.getActrule().getMaxSubtasks(), "max_subtasks应映射到maxSubtasks");
-        assertFalse(config.getActrule().getReplanEnabled(), "replan_enabled应映射到replanEnabled");
-        assertEquals(5, config.getActrule().getMaxReplanCount(), "max_replan_count应映射到maxReplanCount");
         assertEquals("auto_list", config.getActrule().getSkillMode(), "skill_mode应映射到skillMode");
     }
 
@@ -250,18 +244,13 @@ class GovernanceConfigLoaderTest {
                 "  description: '负责任务规划、执行和结果总结的智能助手'\n" +
                 "  scope:\n" +
                 "    allowed: ' '\n" +
-                "    denied: ' '\n" +
-                "    out_of_scope_message: '尚在学习中，暂不支持该业务'\n";
+                "    denied: ' '\n";
         Files.writeString(frameworkDir.resolve("planrule.yaml"), planruleYaml);
         
         // actrule.yaml
         String actruleYaml = "actrule:\n" +
                 "  max_subtasks: 50\n" +
-                "  replan_enabled: true\n" +
-                "  max_replan_count: 3\n" +
                 "  max_steps: 100\n" +
-                "  retry_enabled: true\n" +
-                "  max_retry_count: 3\n" +
                 "  skill_mode: all\n" +
                 "  allowed_tools:\n" +
                 "    - bash\n" +
@@ -288,8 +277,7 @@ class GovernanceConfigLoaderTest {
                 "  scenario_description: 理财产品推荐、筛选、购买全流程\n" +
                 "  scope:\n" +
                 "    allowed: '理财产品查询、理财产品推荐'\n" +
-                "    denied: '基金相关业务'\n" +
-                "    out_of_scope_message: '暂不支持该理财业务'\n";
+                "    denied: '基金相关业务'\n";
         Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleYaml);
         
         // actrule.yaml（场景级覆盖）

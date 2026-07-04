@@ -66,17 +66,11 @@ public class PlanRuleConfig {
         /** 禁止的业务范围列表（替代式覆盖）。 */
         private String denied;
 
-        /** 超出业务范围时的提示消息（替代式覆盖）。 */
-        private String outOfScopeMessage;
-
         public String getAllowed() { return allowed; }
         public void setAllowed(String allowed) { this.allowed = allowed; }
 
         public String getDenied() { return denied; }
         public void setDenied(String denied) { this.denied = denied; }
-
-        public String getOutOfScopeMessage() { return outOfScopeMessage; }
-        public void setOutOfScopeMessage(String outOfScopeMessage) { this.outOfScopeMessage = outOfScopeMessage; }
     }
 
     /**

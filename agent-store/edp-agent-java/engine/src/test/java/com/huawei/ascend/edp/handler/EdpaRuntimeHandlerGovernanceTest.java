@@ -39,7 +39,6 @@ class EdpaRuntimeHandlerGovernanceTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed(" ");
         scope.setDenied(" ");
-        scope.setOutOfScopeMessage("尚在学习中，暂不支持该业务");
         planrule.setScope(scope);
 
         planrule.setSupplementaryPrompt("## 二、行为约束\n\n行为约束：\n1. 当用户表达修改意图，暂停当前任务，重新规划");
@@ -51,7 +50,6 @@ class EdpaRuntimeHandlerGovernanceTest {
         // 验证拼接结果（仅 planruleFragment 生效）
         assertTrue(systemPrompt.contains("# 通用动态规划智能体角色定位"));
         assertTrue(systemPrompt.contains("负责任务规划、执行和结果总结的智能助手"));
-        assertTrue(systemPrompt.contains("超出范围提示：尚在学习中，暂不支持该业务"));
         assertTrue(systemPrompt.contains("## 二、行为约束"));
         assertTrue(systemPrompt.contains("暂停当前任务，重新规划"));
 

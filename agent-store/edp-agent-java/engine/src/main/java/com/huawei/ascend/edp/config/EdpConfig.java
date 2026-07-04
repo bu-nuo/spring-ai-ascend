@@ -54,14 +54,8 @@ public class EdpConfig {
         /** 允许处理的业务范围描述。 */
         private String allowed;
 
-        /** 超出业务范围时的提示话术。 */
-        private String outOfScopeMessage;
-
         public String getAllowed() { return allowed; }
         public void setAllowed(String allowed) { this.allowed = allowed; }
-
-        public String getOutOfScopeMessage() { return outOfScopeMessage; }
-        public void setOutOfScopeMessage(String outOfScopeMessage) { this.outOfScopeMessage = outOfScopeMessage; }
     }
 
     /**

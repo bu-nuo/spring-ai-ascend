@@ -7,7 +7,7 @@
 
 actrule:
   # 限制单层最大子任务数量
-  max_subtasks: 3
+  max_subtasks: 50
 
   # 限制最大执行步数（从 framework.options.maxIterations 迁移）
   max_steps: 100

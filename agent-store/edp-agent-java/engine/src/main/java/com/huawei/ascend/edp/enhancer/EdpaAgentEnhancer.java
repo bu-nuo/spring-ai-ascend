@@ -239,7 +239,7 @@ public class EdpaAgentEnhancer {
         rails.add(new CancelRail(edpConfig));
         // Todo 增强 Rail（catalog_id 补全 + 依赖闭环 + PLAN_FIRST 守卫），仅当 todolist 非空时注册。
         if (deepAgent != null && edpaTodolist != null) {
-            rails.add(new EdpaTodoRail(deepAgent, edpaTodolist));
+            rails.add(new EdpaTodoRail(deepAgent, edpaTodolist, actrule));
         }
         // 执行限制 Rail 负责阻断失控循环。
         rails.add(new ExecutionLimitRail(actrule));

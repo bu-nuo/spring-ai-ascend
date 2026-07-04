@@ -399,11 +399,7 @@ class HzZhidaitongGovernanceE2ETest {
 
         String actruleYaml = "actrule:\n" +
                 "  max_subtasks: 50\n" +
-                "  replan_enabled: true\n" +
-                "  max_replan_count: 3\n" +
                 "  max_steps: 100\n" +
-                "  retry_enabled: true\n" +
-                "  max_retry_count: 3\n" +
                 "  skill_mode: all\n" +
                 "  allowed_tools:\n" +
                 "    - bash\n" +

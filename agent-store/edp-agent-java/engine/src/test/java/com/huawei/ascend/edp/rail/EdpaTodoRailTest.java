@@ -58,7 +58,7 @@ class EdpaTodoRailTest {
 
     @Test
     void priority_is95() {
-        EdpaTodoRail rail = new EdpaTodoRail(null, makeEmptyTodolist());
+        EdpaTodoRail rail = new EdpaTodoRail(null, makeEmptyTodolist(), null);
         assertEquals(95, rail.priority());
     }
 
@@ -112,7 +112,7 @@ class EdpaTodoRailTest {
         Session session = mock(Session.class);
         when(session.getSessionId()).thenReturn("conv-1");
 
-        EdpaTodoRail rail = new EdpaTodoRail(deepAgent, makeTwoEntryTodolist());
+        EdpaTodoRail rail = new EdpaTodoRail(deepAgent, makeTwoEntryTodolist(), null);
         ToolCallInputs inputs = ToolCallInputs.builder()
                 .toolName("call_mcp").toolArgs(Map.of())
                 .toolCall(new ToolCall("c1", "function", "call_mcp", "{}", 0)).build();
@@ -137,7 +137,7 @@ class EdpaTodoRailTest {
         Session session = mock(Session.class);
         when(session.getSessionId()).thenReturn("conv-2");
 
-        EdpaTodoRail rail = new EdpaTodoRail(deepAgent, makeTwoEntryTodolist());
+        EdpaTodoRail rail = new EdpaTodoRail(deepAgent, makeTwoEntryTodolist(), null);
         ToolCallInputs inputs = ToolCallInputs.builder()
                 .toolName("call_versatile").toolArgs(Map.of())
                 .toolCall(new ToolCall("c2", "function", "call_versatile", "{}", 0)).build();

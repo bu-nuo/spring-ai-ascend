@@ -126,20 +126,8 @@ public class GovernanceConfig {
         if (scenarioActrule.getMaxSubtasks() != null) {
             this.actrule.setMaxSubtasks(scenarioActrule.getMaxSubtasks());
         }
-        if (scenarioActrule.getReplanEnabled() != null) {
-            this.actrule.setReplanEnabled(scenarioActrule.getReplanEnabled());
-        }
-        if (scenarioActrule.getMaxReplanCount() != null) {
-            this.actrule.setMaxReplanCount(scenarioActrule.getMaxReplanCount());
-        }
         if (scenarioActrule.getMaxSteps() != null) {
             this.actrule.setMaxSteps(scenarioActrule.getMaxSteps());
-        }
-        if (scenarioActrule.getRetryEnabled() != null) {
-            this.actrule.setRetryEnabled(scenarioActrule.getRetryEnabled());
-        }
-        if (scenarioActrule.getMaxRetryCount() != null) {
-            this.actrule.setMaxRetryCount(scenarioActrule.getMaxRetryCount());
         }
         if (scenarioActrule.getAllowedTools() != null) {
             // 叠加合并：框架工具 + 场景扩展工具，去重但保持顺序

@@ -106,7 +106,9 @@ public class AskUserTemplateRail extends AgentRail {
             if (rt != null && !String.valueOf(rt).isBlank()) {
                 interruptMessage = String.valueOf(rt);
             } else {
-                interruptMessage = ScriptResolver.interruptStart(scripts);
+                // 兜底：无业务话术模板时，保留 LLM 原始 question，
+                // 用 interrupt_start 前缀提示用户"这是系统需要你补充信息"
+                interruptMessage = ScriptResolver.interruptStart(scripts) + "：" + question;
             }
         }
         LOGGER.info("AskUserTemplateRail: interrupting ask_user tool call, toolCallId={}, message='{}'",

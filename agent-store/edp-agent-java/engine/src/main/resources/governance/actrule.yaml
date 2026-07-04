@@ -10,7 +10,7 @@ actrule:
   max_subtasks: 50
 
   # 限制最大执行步数（从 framework.options.maxIterations 迁移）
-  max_steps: 2
+  max_steps: 100
 
   # 是否启用任务循环（从 framework.options.enableTaskLoop 迁移）
   enable_task_loop: true
@@ -28,6 +28,7 @@ actrule:
       - call_versatile
       - call_mcp
       - ask_user
+      - todo_create
       - todo_modify
       - todo_list
       - todo_get
@@ -35,7 +36,7 @@ actrule:
 
   # 单个工具调用次数上限（key: 工具名, value: 上限值）
   tool_limits:
-    call_versatile: 1
+    call_versatile: 100
     call_mcp: 100
     ask_user: 100
     execute_cmd: 100

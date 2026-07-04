@@ -172,8 +172,8 @@ class GovernanceConfigLoaderTest {
         assertTrue(mergedConfig.getActrule().getReplanEnabled(), "未覆盖的replanEnabled应继承框架级默认值");
         assertEquals("auto_list", mergedConfig.getActrule().getSkillMode(), "场景级skillMode应覆盖框架级all为auto_list");
         
-        // 4. scriptconfig.generalScripts: 替代式覆盖
-        assertEquals("正在为您查询理财产品...", mergedConfig.getScriptconfig().getGeneralScripts().getToolStart(), "场景级toolStart应完全覆盖");
+        // 4. scriptconfig.generalScripts: 继承式覆盖
+        assertEquals("正在为您查询理财产品...", mergedConfig.getScriptconfig().getGeneralScripts().getToolStart(), "场景级toolStart应覆盖框架级");
         
         // 5. scriptconfig.thinkChunkScripts: 继承式覆盖
         assertEquals("real_stream", mergedConfig.getScriptconfig().getThinkChunkScripts().getThinkChunkMode(), "场景级thinkChunkMode应覆盖框架级");
@@ -250,8 +250,7 @@ class GovernanceConfigLoaderTest {
                 "  description: '负责任务规划、执行和结果总结的智能助手'\n" +
                 "  scope:\n" +
                 "    allowed: ' '\n" +
-                "    denied: ' '\n" +
-                "    out_of_scope_message: '尚在学习中，暂不支持该业务'\n";
+                "    denied: ' '\n";
         Files.writeString(frameworkDir.resolve("planrule.yaml"), planruleYaml);
         
         // actrule.yaml
@@ -288,8 +287,7 @@ class GovernanceConfigLoaderTest {
                 "  scenario_description: 理财产品推荐、筛选、购买全流程\n" +
                 "  scope:\n" +
                 "    allowed: '理财产品查询、理财产品推荐'\n" +
-                "    denied: '基金相关业务'\n" +
-                "    out_of_scope_message: '暂不支持该理财业务'\n";
+                "    denied: '基金相关业务'\n";
         Files.writeString(scenarioDir.resolve("planrule.yaml"), planruleYaml);
         
         // actrule.yaml（场景级覆盖）

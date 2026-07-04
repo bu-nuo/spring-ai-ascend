@@ -44,13 +44,12 @@ public class PlanrulePromptBuilder {
             return getDefaultSystemPrompt();
         }
 
-        LOGGER.info("PlanrulePromptBuilder: role=[{}], description=[{}], supplementaryPrompt=[{}], scope.allowed=[{}], scope.denied=[{}], scope.outOfScope=[{}]",
+        LOGGER.info("PlanrulePromptBuilder: role=[{}], description=[{}], supplementaryPrompt=[{}], scope.allowed=[{}], scope.denied=[{}]",
                 planrule.getRole(),
                 planrule.getDescription(),
                 planrule.getSupplementaryPrompt(),
                 planrule.getScope() != null ? planrule.getScope().getAllowed() : "null",
-                planrule.getScope() != null ? planrule.getScope().getDenied() : "null",
-                planrule.getScope() != null ? planrule.getScope().getOutOfScopeMessage() : "null");
+                planrule.getScope() != null ? planrule.getScope().getDenied() : "null");
 
         StringBuilder sb = new StringBuilder();
 
@@ -90,12 +89,6 @@ public class PlanrulePromptBuilder {
             // denied字段：非空且非" "时才拼接（" "表示默认配置无禁止业务）
             if (isNotEmpty(scope.getDenied()) && !scope.getDenied().equals(" ")) {
                 scopeSb.append("**禁止的业务**：").append(scope.getDenied()).append("\n");
-                hasScopeContent = true;
-            }
-
-            // outOfScopeMessage字段：非空时才拼接
-            if (isNotEmpty(scope.getOutOfScopeMessage())) {
-                scopeSb.append("超出范围提示：").append(scope.getOutOfScopeMessage()).append("\n");
                 hasScopeContent = true;
             }
 

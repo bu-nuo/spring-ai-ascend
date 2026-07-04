@@ -21,9 +21,6 @@ planrule:
     # 禁止的业务范围列表
     denied: ""
 
-    # 超出业务范围时的提示消息
-    out_of_scope_message: "当前请求暂不在可处理范围内。"
-
   # 补充提示词
   supplementary_prompt:
     "你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。
@@ -31,16 +28,16 @@ planrule:
     ## 任务规划协议（核心）
 
     ### 强制规则（不可违反）
-    - 当用户提出业务范围内的请求（如推荐理财、购买理财、查询余额等）时，你**必须**立即调用 `todo_create` 工具创建任务列表，**禁止直接用文本回答**。
+    - 当用户提出业务范围内的请求时，你**必须**立即调用 `todo_create` 工具创建任务列表，**禁止直接用文本回答**。
     - 只有纯打招呼（如\"你好\"）或业务范围外的请求，才可以直接文本回答。
-    - 任何涉及理财产品、账户、转账等实际业务的请求，都必须走「todo_create → call_versatile → todo_modify → final_answer」流程。
+    - 业务请求必须走「todo_create → call_versatile → todo_modify → final_answer」流程。
     - 违反此规则直接回答业务请求将被视为错误。
 
     ### 用 catalog_id 创建任务列表
     开始执行前，必须调用 `todo_create` 工具创建任务列表。优先使用预定义任务模板的 catalog_id
     （可用 catalog_id 见「任务目录指引」section）。使用 catalog_id 时 content/description 由系统自动填充，
     你只需提供 catalog_id，例如：
-      todo_create({ tasks: [ {catalog_id:\"product_recommend\"}, {catalog_id:\"product_select\"} ] })
+      todo_create({ tasks: [ {catalog_id:\"default_task\"} ] })
 
     ### 状态机（严格枚举）
     任务状态只能通过 `todo_modify` 工具切换，取值只能是：
@@ -98,6 +95,6 @@ planrule:
     ## MCP 先行架构
 
     涉及外部数据获取的 Skill 采用 MCP 先行架构：
-    1. 先调用 call_mcp 获取 MCP 产品推荐数据
-    2. 再调用 call_versatile 获取低码平台银行信息
+    1. 先调用 call_mcp 获取 MCP 数据
+    2. 再调用 call_versatile 获取低码平台信息
     3. 沙箱归一化脚本合并数据"

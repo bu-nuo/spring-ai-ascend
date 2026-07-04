@@ -38,7 +38,6 @@ class PlanrulePromptBuilderTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed("理财产品推荐、筛选、购买");
         scope.setDenied("股票交易、期货交易");
-        scope.setOutOfScopeMessage("尚在学习中，暂不支持该业务");
         planrule.setScope(scope);
 
         planrule.setSupplementaryPrompt("## 二、行为约束\n\n行为约束规则：\n1. 当用户表达修改意图，暂停当前任务，重新规划");
@@ -50,7 +49,6 @@ class PlanrulePromptBuilderTest {
         assertTrue(result.contains("负责任务规划、执行和结果总结的智能助手"));
         assertTrue(result.contains("**当前支持的业务**：理财产品推荐、筛选、购买"));
         assertTrue(result.contains("**禁止的业务**：股票交易、期货交易"));
-        assertTrue(result.contains("超出范围提示：尚在学习中，暂不支持该业务"));
         // supplementaryPrompt直接拼接，不加固定标题
         assertTrue(result.contains("## 二、行为约束\n\n行为约束规则：\n1. 当用户表达修改意图，暂停当前任务，重新规划"));
     }
@@ -69,7 +67,6 @@ class PlanrulePromptBuilderTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed("理财产品推荐");
         scope.setDenied(null);  // denied缺失
-        scope.setOutOfScopeMessage(null);  // outOfScopeMessage缺失
         planrule.setScope(scope);
 
         planrule.setSupplementaryPrompt(null);  // supplementaryPrompt缺失
@@ -81,7 +78,6 @@ class PlanrulePromptBuilderTest {
         assertFalse(result.contains("负责任务规划"));  // description缺失，不应包含
         assertTrue(result.contains("**当前支持的业务**：理财产品推荐"));
         assertFalse(result.contains("**禁止的业务**"));  // denied缺失，不应包含
-        assertFalse(result.contains("超出范围提示"));  // outOfScopeMessage缺失，不应包含
         // supplementaryPrompt缺失，不应包含任何补充内容
         assertFalse(result.contains("行为约束"));  // supplementaryPrompt缺失，不应包含
     }
@@ -115,7 +111,6 @@ class PlanrulePromptBuilderTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed(" ");  // 空格字符串（默认配置标识）
         scope.setDenied("");  // 空字符串
-        scope.setOutOfScopeMessage("  ");  // 空格字符串
         planrule.setScope(scope);
 
         planrule.setSupplementaryPrompt("");  // 空字符串
@@ -140,7 +135,6 @@ class PlanrulePromptBuilderTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed(" ");  // 默认配置：空格字符串（无业务范围限制）
         scope.setDenied(" ");  // 默认配置：空格字符串（无禁止业务）
-        scope.setOutOfScopeMessage("尚在学习中，暂不支持该业务");
         planrule.setScope(scope);
 
         // supplementaryPrompt内容灵活，可以是行为约束、使用说明、注意事项等
@@ -153,7 +147,6 @@ class PlanrulePromptBuilderTest {
         assertTrue(result.contains("负责任务规划、执行和结果总结的智能助手"));
         assertFalse(result.contains("**当前支持的业务**"));  // allowed为" "，应该被跳过
         assertFalse(result.contains("**禁止的业务**"));  // denied为" "，应该被跳过
-        assertTrue(result.contains("超出范围提示：尚在学习中，暂不支持该业务"));
         // supplementaryPrompt直接拼接（包含自己的章节标题）
         assertTrue(result.contains("## 二、行为约束\n\n行为约束："));
         assertTrue(result.contains("关键参数缺失"));
@@ -203,7 +196,6 @@ class PlanrulePromptBuilderTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed("理财产品推荐、筛选、购买");
         scope.setDenied("股票交易、期货交易");
-        scope.setOutOfScopeMessage("正在学习中，暂不支持该业务");
         planrule.setScope(scope);
 
         // supplementaryPrompt内容灵活，这里使用"行为约束"示例（包含自己的章节标题）
@@ -221,7 +213,6 @@ class PlanrulePromptBuilderTest {
         // 业务范围格式：**当前支持的业务**：
         assertTrue(result.contains("**当前支持的业务**：理财产品推荐、筛选、购买"));
         assertTrue(result.contains("**禁止的业务**：股票交易、期货交易"));
-        assertTrue(result.contains("超出范围提示：正在学习中，暂不支持该业务"));
     }
 
     /**
@@ -324,7 +315,6 @@ class PlanrulePromptBuilderTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed("理财产品推荐、筛选、购买、银行账户余额查询、银行账户间转账");
         scope.setDenied("基金相关业务、股票相关业务、保险相关业务");
-        scope.setOutOfScopeMessage("当前请求暂不在可处理范围内。");
         planrule.setScope(scope);
 
         planrule.setSupplementaryPrompt("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。");
@@ -349,7 +339,6 @@ class PlanrulePromptBuilderTest {
         assertTrue(result.contains("理财产品推荐、筛选、购买全流程"));
         assertTrue(result.contains("理财产品推荐、筛选、购买、银行账户余额查询、银行账户间转账"));
         assertTrue(result.contains("基金相关业务、股票相关业务、保险相关业务"));
-        assertTrue(result.contains("当前请求暂不在可处理范围内。"));
         assertTrue(result.contains("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。"));
     }
 
@@ -440,7 +429,6 @@ class PlanrulePromptBuilderTest {
         PlanRuleConfig.Scope scope = new PlanRuleConfig.Scope();
         scope.setAllowed("理财产品推荐、筛选、购买、银行账户余额查询、银行账户间转账");
         scope.setDenied("基金相关业务、股票相关业务、保险相关业务");
-        scope.setOutOfScopeMessage("当前请求暂不在可处理范围内。");
         planrule.setScope(scope);
 
         // 模拟 wealth-demo 的 4 条 skill_routing
@@ -475,7 +463,7 @@ class PlanrulePromptBuilderTest {
         int roleEnd = result.indexOf("你的核心职责");
         int scenarioStart = result.indexOf("**当前场景**：理财购买");
         int scopeStart = result.indexOf("**当前支持的业务**");
-        int scopeEnd = result.indexOf("当前请求暂不在可处理范围内。");
+        int scopeEnd = result.indexOf("基金相关业务、股票相关业务、保险相关业务");
         int skillRoutingStart = result.indexOf("**Skill 路由**：");
         int suppStart = result.indexOf("你采用「规划—执行—观察—反思」");
 

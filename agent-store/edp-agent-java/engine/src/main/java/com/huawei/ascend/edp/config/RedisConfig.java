@@ -70,7 +70,13 @@ public class RedisConfig {
         String redisUrl = buildRedisUrl(props);
         try {
             Checkpointer redisCheckpointer = new RedisCheckpointer.Provider()
-                    .create(Map.of("connection", Map.of("url", redisUrl)));
+                    .create(Map.of(
+                            "connection", Map.of("url", redisUrl),
+                            "ttl", Map.of(
+                                    "default_ttl", props.getCheckpointerTtlMinutes(),
+                                    "refresh_on_read", true
+                            )
+                    ));
             OpenJiuwenCheckpointerConfigurer.setDefault(redisCheckpointer);
             LOGGER.info("[EDPA-DIAG] REDIS_CHECKPOINTER registered (url={}, ttl={}min)",
                     sanitizeUrl(redisUrl), props.getCheckpointerTtlMinutes());

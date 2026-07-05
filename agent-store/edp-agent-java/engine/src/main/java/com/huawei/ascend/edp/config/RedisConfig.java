@@ -1,29 +1,143 @@
 package com.huawei.ascend.edp.config;
 
 import com.huawei.ascend.edp.todo.RedisTodoStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisClusterConfiguration;
+import org.springframework.data.redis.connection.RedisNode;
+import org.springframework.data.redis.connection.RedisSentinelConfiguration;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.SocketOptions;
+import io.lettuce.core.protocol.ProtocolVersion;
+
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Redis 配置类。
+ * Redis 连接配置（Lettuce + RESP2 + 连接超时）。
  *
- * <p>创建 {@link RedisTodoStore} Bean 并通过静态字段持有，
- * 供非 Spring 管理的类（如 {@code EdpaAgentEnhancer}）通过 {@link #getRedisTodoStore()} 访问。</p>
+ * <p>设计参考：FEAT_EDPA Redis 存储设计方案 §2.2.2。</p>
+ * <ul>
+ *   <li>UC-01/UC-02：RESP2 强制（{@code ProtocolVersion.RESP2}）。</li>
+ *   <li>UC-07/UC-22~UC-24：single/sentinel/cluster 三模式按 {@code mode} 切换。</li>
+ *   <li>UC-16：Lettuce 默认连接池，支持 Checkpointer + TodoStore 共存。</li>
+ * </ul>
  */
 @Configuration
 @EnableConfigurationProperties(TodoRedisProperties.class)
 public class RedisConfig {
 
-    private static RedisTodoStore redisTodoStore;
+    private static final Logger LOGGER = LoggerFactory.getLogger(RedisConfig.class);
 
-    @Bean
-    public RedisTodoStore redisTodoStore(TodoRedisProperties properties) {
-        redisTodoStore = new RedisTodoStore(properties);
-        return redisTodoStore;
+    /** 静态持有 RedisTodoStore 实例，供非 Spring 管理的 EdpaAgentEnhancer 取用。 */
+    private static volatile RedisTodoStore singletonStore;
+
+    /** 获取已注册的 RedisTodoStore（未启动 Redis 时返回 null，Rail 回落文件路径）。 */
+    public static RedisTodoStore getRedisTodoStore() {
+        return singletonStore;
     }
 
-    public static RedisTodoStore getRedisTodoStore() {
-        return redisTodoStore;
+    /**
+     * 构建 Lettuce 连接工厂：按 {@code mode} 分发 single/sentinel/cluster。
+     *
+     * <p>RESP2 强制 + socket 超时 + 连接建立超时，保证 UC-01 健康检查可发现版本/认证问题。</p>
+     */
+    @Bean
+    public LettuceConnectionFactory redisConnectionFactory(TodoRedisProperties props) {
+        ClientOptions options = ClientOptions.builder()
+                .protocolVersion(ProtocolVersion.RESP2)
+                .socketOptions(SocketOptions.builder()
+                        .connectTimeout(Duration.ofMillis(props.getConnectTimeoutMs()))
+                        .build())
+                .build();
+
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder clientBuilder =
+                LettuceClientConfiguration.builder()
+                        .clientOptions(options)
+                        .commandTimeout(Duration.ofMillis(props.getSocketTimeoutMs()));
+
+        org.springframework.data.redis.connection.RedisConfiguration redisConfig;
+        String mode = props.getMode() == null ? "single" : props.getMode().toLowerCase();
+        switch (mode) {
+            case "sentinel" -> redisConfig = buildSentinelConfig(props);
+            case "cluster" -> redisConfig = buildClusterConfig(props);
+            default -> redisConfig = buildStandaloneConfig(props);
+        }
+
+        LettuceConnectionFactory factory = new LettuceConnectionFactory(
+                (org.springframework.data.redis.connection.RedisConfiguration) redisConfig,
+                clientBuilder.build());
+        factory.afterPropertiesSet();
+        LOGGER.info("[EDPA-DIAG] REDIS_CONFIG mode={} host={} port={} db={} resp2=true",
+                mode, props.getHost(), props.getPort(), props.getDatabase());
+        return factory;
+    }
+
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(LettuceConnectionFactory factory) {
+        return new StringRedisTemplate(factory);
+    }
+
+    /**
+     * 注册 RedisTodoStore Bean（UC-03~UC-11 主路径）。
+     *
+     * <p>启动时调用 {@link RedisTodoStore#healthCheck()} 做健康检查（UC-01/UC-02），
+     * 失败则容器启动失败。</p>
+     */
+    @Bean
+    public RedisTodoStore redisTodoStore(StringRedisTemplate redisTemplate,
+                                         TodoRedisProperties props) {
+        RedisTodoStore store = new RedisTodoStore(redisTemplate, props);
+        store.healthCheck();
+        singletonStore = store;
+        return store;
+    }
+
+    private RedisStandaloneConfiguration buildStandaloneConfig(TodoRedisProperties props) {
+        RedisStandaloneConfiguration cfg = new RedisStandaloneConfiguration(
+                props.getHost(), props.getPort());
+        cfg.setDatabase(props.getDatabase());
+        if (props.getPassword() != null && !props.getPassword().isBlank()) {
+            cfg.setPassword(props.getPassword());
+        }
+        return cfg;
+    }
+
+    private RedisSentinelConfiguration buildSentinelConfig(TodoRedisProperties props) {
+        RedisSentinelConfiguration cfg = new RedisSentinelConfiguration();
+        cfg.master(props.getSentinel().getMaster());
+        cfg.setDatabase(props.getDatabase());
+        if (props.getPassword() != null && !props.getPassword().isBlank()) {
+            cfg.setPassword(props.getPassword());
+        }
+        for (String node : props.getSentinel().getNodes()) {
+            String[] hp = node.split(":");
+            cfg.sentinel(hp[0].trim(), Integer.parseInt(hp[1].trim()));
+        }
+        return cfg;
+    }
+
+    private RedisClusterConfiguration buildClusterConfig(TodoRedisProperties props) {
+        List<RedisNode> nodes = new ArrayList<>();
+        for (String node : props.getCluster().getNodes()) {
+            String[] hp = node.split(":");
+            nodes.add(new RedisNode(hp[0].trim(), Integer.parseInt(hp[1].trim())));
+        }
+        RedisClusterConfiguration cfg = new RedisClusterConfiguration();
+        cfg.setClusterNodes(nodes);
+        cfg.setMaxRedirects(props.getCluster().getMaxRedirects());
+        if (props.getPassword() != null && !props.getPassword().isBlank()) {
+            cfg.setPassword(props.getPassword());
+        }
+        return cfg;
     }
 }

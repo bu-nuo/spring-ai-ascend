@@ -1,6 +1,9 @@
 package com.huawei.ascend.edp.config;
 
 import com.huawei.ascend.edp.todo.RedisTodoStore;
+import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenCheckpointerConfigurer;
+import com.openjiuwen.core.session.checkpointer.Checkpointer;
+import com.openjiuwen.extensions.checkpointer.redis.RedisCheckpointer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -21,6 +24,9 @@ import io.lettuce.core.protocol.ProtocolVersion;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
+import jakarta.annotation.PostConstruct;
 
 /**
  * Redis 连接配置（Lettuce + RESP2 + 连接超时）。
@@ -44,6 +50,45 @@ public class RedisConfig {
     /** 获取已注册的 RedisTodoStore（未启动 Redis 时返回 null，Rail 回落文件路径）。 */
     public static RedisTodoStore getRedisTodoStore() {
         return singletonStore;
+    }
+
+    private final TodoRedisProperties props;
+
+    public RedisConfig(TodoRedisProperties props) {
+        this.props = props;
+    }
+
+    /**
+     * 注册 Redis Checkpointer（UC-17）。
+     *
+     * <p>启动时创建 {@link RedisCheckpointer} 并通过
+     * {@link OpenJiuwenCheckpointerConfigurer#setDefault} 注册为全局默认，
+     * Core SDK 会话状态将持久化到 Redis（UC-18~UC-21）。</p>
+     */
+    @PostConstruct
+    public void initRedisCheckpointer() {
+        String redisUrl = buildRedisUrl(props);
+        try {
+            Checkpointer redisCheckpointer = new RedisCheckpointer.Provider()
+                    .create(Map.of("connection", Map.of("url", redisUrl)));
+            OpenJiuwenCheckpointerConfigurer.setDefault(redisCheckpointer);
+            LOGGER.info("[EDPA-DIAG] REDIS_CHECKPOINTER registered (url={}, ttl={}min)",
+                    sanitizeUrl(redisUrl), props.getCheckpointerTtlMinutes());
+        } catch (Exception e) {
+            LOGGER.error("[EDPA-DIAG] REDIS_CHECKPOINTER register failed", e);
+            throw new IllegalStateException("Redis Checkpointer registration failed", e);
+        }
+    }
+
+    private static String buildRedisUrl(TodoRedisProperties props) {
+        String auth = (props.getPassword() != null && !props.getPassword().isBlank())
+                ? ":" + props.getPassword() + "@" : "";
+        return "redis://" + auth + props.getHost() + ":" + props.getPort()
+                + "/" + props.getDatabase();
+    }
+
+    private static String sanitizeUrl(String url) {
+        return url.replaceAll("://[^@]*@", "://***:***@");
     }
 
     /**

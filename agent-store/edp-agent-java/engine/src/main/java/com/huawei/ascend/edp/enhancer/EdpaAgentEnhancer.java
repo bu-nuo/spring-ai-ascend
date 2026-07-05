@@ -5,6 +5,7 @@ import com.huawei.ascend.edp.config.ActRuleConfig;
 import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
 import com.huawei.ascend.edp.config.EdpConfig;
 import com.huawei.ascend.edp.config.EdpaTodolist;
+import com.huawei.ascend.edp.config.RedisConfig;
 import com.huawei.ascend.edp.config.SysScriptsConfig;
 import com.huawei.ascend.edp.rail.CancelRail;
 import com.huawei.ascend.edp.rail.EdpaTodoRail;
@@ -16,6 +17,7 @@ import com.huawei.ascend.edp.rail.VersatileInterruptRail.VersatilePassthroughBuf
 import com.huawei.ascend.edp.rail.McpInterruptRail;
 import com.huawei.ascend.edp.rail.AskUserTemplateRail;
 import com.huawei.ascend.edp.rail.LogRail;
+import com.huawei.ascend.edp.todo.RedisTodoStore;
 import com.huawei.ascend.edp.tools.EdpaBusinessTools;
 import com.openjiuwen.core.foundation.tool.Tool;
 import com.openjiuwen.harness.deep_agent.DeepAgent;
@@ -230,6 +232,19 @@ public class EdpaAgentEnhancer {
     public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpaSpringBootConfig springBootConfig,
             ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
             DeepAgent deepAgent, EdpaTodolist edpaTodolist, ActRuleConfig actrule, SysScriptsConfig scripts) {
+        return buildBusinessRails(edpConfig, springBootConfig, toolDataChannel, skillsDir, passthroughBuffer,
+                deepAgent, edpaTodolist, actrule, scripts, null);
+    }
+
+    /**
+     * 构造业务 Rails（支持注入 RedisTodoStore）。
+     *
+     * @param redisTodoStore Redis Todo 存储（UC-03~UC-11 主路径；null 时 Rail 内部回落文件/缓存）
+     */
+    public static List<AgentRail> buildBusinessRails(EdpConfig edpConfig, EdpaSpringBootConfig springBootConfig,
+            ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
+            DeepAgent deepAgent, EdpaTodolist edpaTodolist, ActRuleConfig actrule, SysScriptsConfig scripts,
+            RedisTodoStore redisTodoStore) {
         ToolDataChannel sharedChannel = toolDataChannel != null ? toolDataChannel : new ToolDataChannel();
         VersatilePassthroughBuffer sharedPassthroughBuffer = passthroughBuffer != null
                 ? passthroughBuffer : new VersatilePassthroughBuffer();
@@ -239,7 +254,7 @@ public class EdpaAgentEnhancer {
         rails.add(new CancelRail(edpConfig));
         // Todo 增强 Rail（catalog_id 补全 + 依赖闭环 + PLAN_FIRST 守卫），仅当 todolist 非空时注册。
         if (deepAgent != null && edpaTodolist != null) {
-            rails.add(new EdpaTodoRail(deepAgent, edpaTodolist, actrule));
+            rails.add(new EdpaTodoRail(deepAgent, edpaTodolist, redisTodoStore, actrule));
         }
         // 执行限制 Rail 负责阻断失控循环。
         rails.add(new ExecutionLimitRail(actrule));
@@ -252,7 +267,7 @@ public class EdpaAgentEnhancer {
         rails.add(new LogRail(edpConfig));
         // 思维链事件发射 Rail（todo/tool/think/final_answer 事件流），需要 deepAgent。
         if (deepAgent != null) {
-            rails.add(new EdpaEventRail(deepAgent, scripts));
+            rails.add(new EdpaEventRail(deepAgent, scripts, redisTodoStore));
         }
         // 话术出口 Rail（B 面：首轮/业务话术/出口/合规/Prompt）。
         rails.add(new ScriptsRail(scripts));
@@ -297,8 +312,10 @@ public class EdpaAgentEnhancer {
     private static void registerBusinessRails(DeepAgent agent, EdpConfig edpConfig, EdpaSpringBootConfig springBootConfig,
             ActRuleConfig actrule, ToolDataChannel toolDataChannel, Path skillsDir, VersatilePassthroughBuffer passthroughBuffer,
             DeepAgent deepAgent, EdpaTodolist edpaTodolist, SysScriptsConfig scripts) {
+        // 从 Spring 容器获取 RedisTodoStore（非 Spring 管理类通过静态持有访问）
+        RedisTodoStore redisTodoStore = RedisConfig.getRedisTodoStore();
         List<AgentRail> rails = buildBusinessRails(edpConfig, springBootConfig, toolDataChannel, skillsDir,
-                passthroughBuffer, deepAgent, edpaTodolist, actrule, scripts);
+                passthroughBuffer, deepAgent, edpaTodolist, actrule, scripts, redisTodoStore);
         for (AgentRail rail : rails) {
             // Rail 注册在底层 BaseAgent 上，ReAct 执行循环会按事件和优先级触发回调。
             agent.getAgent().registerRail(rail);

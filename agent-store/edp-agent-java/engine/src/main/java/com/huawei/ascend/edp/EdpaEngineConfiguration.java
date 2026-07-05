@@ -1,7 +1,9 @@
 package com.huawei.ascend.edp;
 
 import com.huawei.ascend.edp.config.EdpaSpringBootConfig;
+import com.huawei.ascend.edp.config.RedisConfig;
 import com.huawei.ascend.edp.handler.EdpaRuntimeHandler;
+import com.huawei.ascend.edp.todo.RedisTodoStore;
 import com.huawei.ascend.runtime.engine.openjiuwen.OpenJiuwenAgentRuntimeHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -37,7 +39,8 @@ public class EdpaEngineConfiguration {
     OpenJiuwenAgentRuntimeHandler edpaRuntimeHandler(
             EdpaSpringBootConfig springBootConfig,
             @Value("${edpa.agent.config-path}") String configPath,
-            @Value("${edpa.agent.scenario-home}") String scenarioHome) {
+            @Value("${edpa.agent.scenario-home}") String scenarioHome,
+            RedisTodoStore redisTodoStore) {
         EdpaRuntimeHandler handler = new EdpaRuntimeHandler();
         handler.init(springBootConfig, configPath, scenarioHome);
         return handler;

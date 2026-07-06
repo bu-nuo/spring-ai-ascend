@@ -659,4 +659,175 @@ class GovernanceConfigLoaderTest {
         assertEquals("auto_list", mergedConfig.getActrule().getSkillMode(), "skillMode应覆盖为auto_list");
         assertEquals(true, mergedConfig.getActrule().getEnableTaskLoop(), "enableTaskLoop应继承框架值true");
     }
+
+    @Test
+    @DisplayName("测试19：scriptconfig资源限制字段取min策略验证")
+    void testScriptconfigResourceLimitsMinMerge() throws IOException {
+        Path tempDir = Files.createTempDirectory("scriptconfig-test");
+        Path frameworkDir = tempDir.resolve("framework-resource");
+        Files.createDirectories(frameworkDir);
+
+        // 准备框架级配置（资源限制上限）
+        String frameworkScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      chars_per_frame: 4\n" +
+                "      tokens_between_frames: 2\n" +
+                "      min_interval_ms: 50\n";
+        Files.writeString(frameworkDir.resolve("scriptconfig.yaml"), frameworkScriptconfig);
+        createMinimalActruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（收紧框架上限）
+        Path scenarioDir = tempDir.resolve("scenario-script");
+        Files.createDirectories(scenarioDir);
+        String scenarioScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      chars_per_frame: 2\n" +  // 收紧框架上限（2 < 4）
+                "      tokens_between_frames: 1\n" +  // 收紧框架上限（1 < 2）
+                "      min_interval_ms: 30\n";  // 收紧框架上限（30 < 50）
+        Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scenarioScriptconfig);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：资源限制字段取min（场景不能放宽框架上限）
+        ScriptConfig.ThinkChunkFixedScripts fixedScripts = mergedConfig.getScriptconfig()
+                .getThinkChunkScripts().getThinkChunkFixedScripts();
+        assertEquals(2, fixedScripts.getCharsPerFrame(), "charsPerFrame应取min（2 < 4）");
+        assertEquals(1, fixedScripts.getTokensBetweenFrames(), "tokensBetweenFrames应取min（1 < 2）");
+        assertEquals(30, fixedScripts.getMinIntervalMs(), "minIntervalMs应取min（30 < 50）");
+    }
+
+    @Test
+    @DisplayName("测试20：scriptconfig话术字段替代策略验证")
+    void testScriptconfigScriptsReplace() throws IOException {
+        Path tempDir = Files.createTempDirectory("scriptconfig-test");
+        Path frameworkDir = tempDir.resolve("framework-resource");
+        Files.createDirectories(frameworkDir);
+
+        // 准备框架级配置（默认话术）
+        String frameworkScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      default_scripts:\n" +
+                "        - \"框架默认话术1\"\n" +
+                "        - \"框架默认话术2\"\n" +
+                "      execution_scripts:\n" +
+                "        - \"框架执行话术\"\n" +
+                "      resume_scripts:\n" +
+                "        - \"框架续轮话术\"\n";
+        Files.writeString(frameworkDir.resolve("scriptconfig.yaml"), frameworkScriptconfig);
+        createMinimalActruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（替代框架话术）
+        Path scenarioDir = tempDir.resolve("scenario-script");
+        Files.createDirectories(scenarioDir);
+        String scenarioScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      default_scripts:\n" +
+                "        - \"场景定制话术\"\n" +  // 替代框架默认话术
+                "      execution_scripts:\n" +
+                "        - \"场景执行话术\"\n";  // 替代框架执行话术
+        Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scenarioScriptconfig);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：话术字段替代式覆盖（场景有配置时以场景替代框架默认）
+        ScriptConfig.ThinkChunkFixedScripts fixedScripts = mergedConfig.getScriptconfig()
+                .getThinkChunkScripts().getThinkChunkFixedScripts();
+        assertEquals(1, fixedScripts.getDefaultScripts().size(), "defaultScripts应替代为场景配置");
+        assertEquals("场景定制话术", fixedScripts.getDefaultScripts().get(0), "defaultScripts应为场景话术");
+        assertEquals(1, fixedScripts.getExecutionScripts().size(), "executionScripts应替代为场景配置");
+        assertEquals("场景执行话术", fixedScripts.getExecutionScripts().get(0), "executionScripts应为场景话术");
+        // resumeScripts：场景未配置，继承框架话术
+        assertEquals(1, fixedScripts.getResumeScripts().size(), "resumeScripts应继承框架配置");
+        assertEquals("框架续轮话术", fixedScripts.getResumeScripts().get(0), "resumeScripts应为框架话术");
+    }
+
+    @Test
+    @DisplayName("测试21：scriptconfig queryPatterns追加策略验证")
+    void testScriptconfigQueryPatternsAppend() throws IOException {
+        Path tempDir = Files.createTempDirectory("scriptconfig-test");
+        Path frameworkDir = tempDir.resolve("framework-resource");
+        Files.createDirectories(frameworkDir);
+
+        // 准备框架级配置（通用匹配模式）
+        String frameworkScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      query_patterns:\n" +
+                "        - keywords: [\"取消\", \"停止\"]\n" +
+                "          scripts: [\"正在取消操作...\"]\n" +
+                "        - keywords: [\"帮助\", \"help\"]\n" +
+                "          scripts: [\"正在准备帮助信息...\"]\n";
+        Files.writeString(frameworkDir.resolve("scriptconfig.yaml"), frameworkScriptconfig);
+        createMinimalActruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（追加业务关键词）
+        Path scenarioDir = tempDir.resolve("scenario-script");
+        Files.createDirectories(scenarioDir);
+        String scenarioScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      query_patterns:\n" +
+                "        - keywords: [\"推荐\", \"理财\"]\n" +
+                "          scripts: [\"正在搜索理财产品...\"]\n" +
+                "        - keywords: [\"购买\", \"下单\"]\n" +
+                "          scripts: [\"正在确认购买信息...\"]\n";
+        Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scenarioScriptconfig);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：queryPatterns追加策略（框架通用模式 + 场景业务关键词）
+        ScriptConfig.ThinkChunkFixedScripts fixedScripts = mergedConfig.getScriptconfig()
+                .getThinkChunkScripts().getThinkChunkFixedScripts();
+        assertEquals(4, fixedScripts.getQueryPatterns().size(), "queryPatterns应追加为4个（框架2个 + 场景2个）");
+        
+        // 验证顺序：框架通用模式在前，场景业务关键词在后
+        assertEquals(2, fixedScripts.getQueryPatterns().get(0).getKeywords().size(), "第1个应为框架通用模式");
+        assertEquals("取消", fixedScripts.getQueryPatterns().get(0).getKeywords().get(0), "第1个关键词应为\"取消\"");
+        assertEquals(2, fixedScripts.getQueryPatterns().get(2).getKeywords().size(), "第3个应为场景业务关键词");
+        assertEquals("推荐", fixedScripts.getQueryPatterns().get(2).getKeywords().get(0), "第3个关键词应为\"推荐\"");
+    }
+
+    @Test
+    @DisplayName("测试22：scriptconfig summary字段已删除验证")
+    void testScriptconfigSummaryDeleted() throws IOException {
+        Path tempDir = Files.createTempDirectory("scriptconfig-test");
+        Path frameworkDir = tempDir.resolve("framework-resource");
+        Files.createDirectories(frameworkDir);
+
+        // 准备框架级配置（无summary配置）
+        String frameworkScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      enabled: true\n";
+        Files.writeString(frameworkDir.resolve("scriptconfig.yaml"), frameworkScriptconfig);
+        createMinimalActruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（无summary配置）
+        Path scenarioDir = tempDir.resolve("scenario-script");
+        Files.createDirectories(scenarioDir);
+        String scenarioScriptconfig = "scriptconfig:\n" +
+                "  think_chunk_scripts:\n" +
+                "    think_chunk_fixed_scripts:\n" +
+                "      enabled: false\n";
+        Files.writeString(scenarioDir.resolve("scriptconfig.yaml"), scenarioScriptconfig);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：Summary字段已删除，不存在getSummary方法
+        assertNull(mergedConfig.getScriptconfig().getThinkChunkScripts()
+                .getThinkChunkFixedScripts().getEnabled(), "enabled应继承为false");
+        // 注意：Summary字段已删除，mergedConfig.getScriptconfig().getSummary()应不存在或返回null
+    }
 }

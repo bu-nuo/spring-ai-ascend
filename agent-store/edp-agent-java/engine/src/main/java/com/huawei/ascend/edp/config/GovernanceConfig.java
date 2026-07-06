@@ -298,11 +298,6 @@ public class GovernanceConfig {
             mergeThinkChunkScripts(scenarioScriptconfig.getThinkChunkScripts());
         }
 
-        // summary: 替代式覆盖
-        if (scenarioScriptconfig.getSummary() != null) {
-            this.scriptconfig.setSummary(scenarioScriptconfig.getSummary());
-        }
-
         // askUserConfirm: 继承式覆盖
         if (scenarioScriptconfig.getAskUserConfirm() != null) {
             mergeAskUserConfirm(scenarioScriptconfig.getAskUserConfirm());
@@ -402,13 +397,59 @@ public class GovernanceConfig {
      */
     private void mergeFixedScripts(ScriptConfig.ThinkChunkFixedScripts def,
                                    ScriptConfig.ThinkChunkFixedScripts scenario) {
+        // enabled: 布尔开关，继承式覆盖
         if (scenario.getEnabled() != null) { def.setEnabled(scenario.getEnabled()); }
-        if (scenario.getCharsPerFrame() != null) { def.setCharsPerFrame(scenario.getCharsPerFrame()); }
-        if (scenario.getTokensBetweenFrames() != null) { def.setTokensBetweenFrames(scenario.getTokensBetweenFrames()); }
-        if (scenario.getMinIntervalMs() != null) { def.setMinIntervalMs(scenario.getMinIntervalMs()); }
+        
+        // charsPerFrame: 资源限制类字段，取min（场景不能放宽框架限制）
+        if (scenario.getCharsPerFrame() != null) {
+            Integer frameworkValue = def.getCharsPerFrame();
+            Integer scenarioValue = scenario.getCharsPerFrame();
+            Integer mergedValue = (frameworkValue != null) 
+                ? Math.min(frameworkValue, scenarioValue) 
+                : scenarioValue;
+            def.setCharsPerFrame(mergedValue);
+        }
+        
+        // tokensBetweenFrames: 资源限制类字段，取min
+        if (scenario.getTokensBetweenFrames() != null) {
+            Integer frameworkValue = def.getTokensBetweenFrames();
+            Integer scenarioValue = scenario.getTokensBetweenFrames();
+            Integer mergedValue = (frameworkValue != null) 
+                ? Math.min(frameworkValue, scenarioValue) 
+                : scenarioValue;
+            def.setTokensBetweenFrames(mergedValue);
+        }
+        
+        // minIntervalMs: 资源限制类字段，取min
+        if (scenario.getMinIntervalMs() != null) {
+            Integer frameworkValue = def.getMinIntervalMs();
+            Integer scenarioValue = scenario.getMinIntervalMs();
+            Integer mergedValue = (frameworkValue != null) 
+                ? Math.min(frameworkValue, scenarioValue) 
+                : scenarioValue;
+            def.setMinIntervalMs(mergedValue);
+        }
+        
+        // defaultScripts: 替代式覆盖（场景有配置时以场景替代框架默认）
         if (scenario.getDefaultScripts() != null) { def.setDefaultScripts(scenario.getDefaultScripts()); }
+        
+        // executionScripts: 替代式覆盖
         if (scenario.getExecutionScripts() != null) { def.setExecutionScripts(scenario.getExecutionScripts()); }
+        
+        // resumeScripts: 替代式覆盖
         if (scenario.getResumeScripts() != null) { def.setResumeScripts(scenario.getResumeScripts()); }
-        if (scenario.getQueryPatterns() != null) { def.setQueryPatterns(scenario.getQueryPatterns()); }
+        
+        // queryPatterns: 追加策略（框架通用模式 + 场景业务关键词）
+        if (scenario.getQueryPatterns() != null) {
+            if (def.getQueryPatterns() == null) {
+                def.setQueryPatterns(scenario.getQueryPatterns());
+            } else {
+                // 追加合并：框架 queryPatterns + 场景 queryPatterns
+                java.util.List<ScriptConfig.ThinkChunkFixedScripts.QueryPattern> mergedPatterns = new java.util.ArrayList<>();
+                mergedPatterns.addAll(def.getQueryPatterns());  // 先加框架通用模式
+                mergedPatterns.addAll(scenario.getQueryPatterns());  // 再追加场景业务关键词
+                def.setQueryPatterns(mergedPatterns);
+            }
+        }
     }
 }

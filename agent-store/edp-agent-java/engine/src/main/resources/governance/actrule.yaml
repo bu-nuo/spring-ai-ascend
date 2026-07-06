@@ -36,9 +36,9 @@ actrule:
 
   # 单个工具调用次数上限（key: 工具名, value: 上限值）
   tool_limits:
-    call_versatile: 100
-    call_mcp: 100
-    ask_user: 100
-    execute_cmd: 100
+    call_versatile: 50
+    call_mcp: 50
+    ask_user: 50
+    execute_cmd: 50
 
   

@@ -54,7 +54,7 @@
     },
     {
       "id": "conv_resource_limits_cannot_relax",
-      "title": "正向：验证场景不能放宽框架上限（安全约束）",
+      "title": "负向：验证场景放宽框架上限被拒绝（安全约束生效）",
       "eventTypes": ["summary", "final_answer_chunk"],
       "steps": [
         {
@@ -127,6 +127,28 @@
           "id": "step_todolist_dynamic_paths_replace",
           "query": "理财场景的动态路径规则（todolistDynamicPaths）是如何合并的？",
           "expected": "todolistDynamicPaths采用替代式覆盖。场景提供完整的动态路径规则（shortcut_skip_filter/skip_purchase_if_no_balance），框架默认无值。Agent应使用场景定义的路径规则，而非框架默认。"
+        }
+      ]
+    },
+    {
+      "id": "conv_actrule_negative_scenarios",
+      "title": "负向：超出限制和混合放宽场景验证",
+      "eventTypes": ["summary", "final_answer_chunk", "tool_start", "tool_end"],
+      "steps": [
+        {
+          "id": "step_exceed_max_subtasks",
+          "query": "尝试创建包含40个子任务的理财规划流程（场景限制30个）",
+          "expected": "Agent应拒绝创建超过30个子任务，或在第30个任务处截断。Agent应给出明确错误提示：'超出maxSubtasks限制（当前限制：30）'。"
+        },
+        {
+          "id": "step_exceed_tool_limit",
+          "query": "在理财推荐流程中连续调用call_versatile工具40次（场景限制30次）",
+          "expected": "Agent应在第30次调用call_versatile后截断，不再继续调用。Agent应给出超出限制提示：'call_versatile工具调用次数已达上限（30次）'。"
+        },
+        {
+          "id": "step_mixed_relax_tighten",
+          "query": "场景配置：call_versatile放宽至80（>50框架限制），call_mcp收紧至20（<50框架限制），验证合并结果",
+          "expected": "call_versatile放宽被拒绝（保持框架值50），call_mcp收紧生效（取min=20）。Agent应遵守：call_versatile不超过50次，call_mcp不超过20次。"
         }
       ]
     }

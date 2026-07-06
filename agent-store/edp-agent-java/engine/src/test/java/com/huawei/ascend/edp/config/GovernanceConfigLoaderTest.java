@@ -593,4 +593,70 @@ class GovernanceConfigLoaderTest {
         assertEquals(100, mergedConfig.getActrule().getMaxSteps(), "maxSteps应保持框架上限（100），拒绝场景放宽");
         assertEquals(50, mergedConfig.getActrule().getToolLimits().get("call_versatile"), "call_versatile应保持框架限制（50），拒绝场景放宽");
     }
+
+    @Test
+    @DisplayName("测试17：框架无配置，场景配置完全生效")
+    void testFrameworkNullScenarioConfig生效() throws Exception {
+        // 准备框架级配置（无资源限制配置）
+        Path frameworkDir = tempDir.resolve("framework-null");
+        Files.createDirectories(frameworkDir);
+        String frameworkActrule = "actrule:\n" +
+                "  skill_mode: all\n";  // 只配置其他字段
+        Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
+        createMinimalPlanruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（新增资源限制）
+        Path scenarioDir = tempDir.resolve("scenario-new-limits");
+        Files.createDirectories(scenarioDir);
+        String scenarioActrule = "actrule:\n" +
+                "  max_subtasks: 30\n" +  // 框架无此配置，场景新增
+                "  max_steps: 80\n" +      // 框架无此配置，场景新增
+                "  tool_limits:\n" +
+                "    call_versatile: 30\n" +  // 框架无此配置，场景新增
+                "    call_mcp: 20\n";          // 框架无此配置，场景新增
+        Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
+        createMinimalPlanruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：框架无配置时，场景配置完全生效
+        assertEquals(30, mergedConfig.getActrule().getMaxSubtasks(), "框架无maxSubtasks，场景配置30应生效");
+        assertEquals(80, mergedConfig.getActrule().getMaxSteps(), "框架无maxSteps，场景配置80应生效");
+        assertNotNull(mergedConfig.getActrule().getToolLimits(), "toolLimits应存在");
+        assertEquals(30, mergedConfig.getActrule().getToolLimits().get("call_versatile"), "框架无call_versatile限制，场景新增30应生效");
+        assertEquals(20, mergedConfig.getActrule().getToolLimits().get("call_mcp"), "框架无call_mcp限制，场景新增20应生效");
+    }
+
+    @Test
+    @DisplayName("测试18：框架和场景都无配置（边界验证）")
+    void testBothNullConfig() throws Exception {
+        // 准备框架级配置（完全不配置资源限制）
+        Path frameworkDir = tempDir.resolve("framework-both-null");
+        Files.createDirectories(frameworkDir);
+        String frameworkActrule = "actrule:\n" +
+                "  skill_mode: all\n" +
+                "  enable_task_loop: true\n";
+        Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
+        createMinimalPlanruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（完全不配置资源限制）
+        Path scenarioDir = tempDir.resolve("scenario-both-null");
+        Files.createDirectories(scenarioDir);
+        String scenarioActrule = "actrule:\n" +
+                "  skill_mode: auto_list\n";  // 只配置其他字段
+        Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
+        createMinimalPlanruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：双方都无配置时，资源限制字段为null（或系统默认值）
+        assertNull(mergedConfig.getActrule().getMaxSubtasks(), "双方都无maxSubtasks配置，应为null");
+        assertNull(mergedConfig.getActrule().getMaxSteps(), "双方都无maxSteps配置，应为null");
+        assertNull(mergedConfig.getActrule().getToolLimits(), "双方都无toolLimits配置，应为null");
+        // 其他字段正常继承/覆盖
+        assertEquals("auto_list", mergedConfig.getActrule().getSkillMode(), "skillMode应覆盖为auto_list");
+        assertEquals(true, mergedConfig.getActrule().getEnableTaskLoop(), "enableTaskLoop应继承框架值true");
+    }
 }

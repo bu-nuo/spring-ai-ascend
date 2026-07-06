@@ -40,7 +40,10 @@ class PlanrulePromptBuilderTest {
         scope.setDenied("股票交易、期货交易");
         planrule.setScope(scope);
 
-        planrule.setSupplementaryPrompt("## 二、行为约束\n\n行为约束规则：\n1. 当用户表达修改意图，暂停当前任务，重新规划");
+        PlanRuleConfig.SupplementaryPrompt suppPrompt1 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt1.setBaseProtocol("## 二、行为约束\n\n行为约束规则：\n1. 当用户表达修改意图，暂停当前任务，重新规划");
+        suppPrompt1.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt1);
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 
@@ -113,7 +116,10 @@ class PlanrulePromptBuilderTest {
         scope.setDenied("");  // 空字符串
         planrule.setScope(scope);
 
-        planrule.setSupplementaryPrompt("");  // 空字符串
+        PlanRuleConfig.SupplementaryPrompt suppPrompt2 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt2.setBaseProtocol("");
+        suppPrompt2.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt2);  // 空字符串
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 
@@ -138,7 +144,10 @@ class PlanrulePromptBuilderTest {
         planrule.setScope(scope);
 
         // supplementaryPrompt内容灵活，可以是行为约束、使用说明、注意事项等
-        planrule.setSupplementaryPrompt("## 二、行为约束\n\n行为约束：\n1. 当用户表达修改意图，暂停当前任务，重新规划\n2. 当遇到以下情况，**调用 `ask_user` 工具**暂停执行，等待用户补充：\n- 关键参数缺失\n- 敏感操作需用户确认\n- 用户输入有歧义");
+        PlanRuleConfig.SupplementaryPrompt suppPrompt3 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt3.setBaseProtocol("## 二、行为约束\n\n行为约束：\n1. 当用户表达修改意图，暂停当前任务，重新规划\n2. 当遇到以下情况，**调用 `ask_user` 工具**暂停执行，等待用户补充：\n- 关键参数缺失\n- 敏感操作需用户确认\n- 用户输入有歧义");
+        suppPrompt3.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt3);
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 
@@ -162,7 +171,8 @@ class PlanrulePromptBuilderTest {
     void testBuildSystemPromptFragmentWithMultilineSupplementaryPrompt() {
         PlanRuleConfig planrule = new PlanRuleConfig();
         // supplementaryPrompt内容灵活，这里测试"使用说明"示例（不加"## 二、行为约束"固定标题）
-        planrule.setSupplementaryPrompt(
+        PlanRuleConfig.SupplementaryPrompt suppPrompt4 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt4.setBaseProtocol(
             "## 三、使用说明\n\n" +
             "工具使用规则：\n" +
             "1. 当用户表达修改意图，暂停当前任务，重新规划\n" +
@@ -170,6 +180,8 @@ class PlanrulePromptBuilderTest {
             "   - 关键参数缺失\n" +
             "   - 敏感操作需用户确认"
         );
+        suppPrompt4.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt4);
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 
@@ -199,7 +211,10 @@ class PlanrulePromptBuilderTest {
         planrule.setScope(scope);
 
         // supplementaryPrompt内容灵活，这里使用"行为约束"示例（包含自己的章节标题）
-        planrule.setSupplementaryPrompt("## 二、行为约束\n\n行为约束：\n1. 工具执行失败时，在 thought 中记录原因");
+        PlanRuleConfig.SupplementaryPrompt suppPrompt5 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt5.setBaseProtocol("## 二、行为约束\n\n行为约束：\n1. 工具执行失败时，在 thought 中记录原因");
+        suppPrompt5.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt5);
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 
@@ -317,7 +332,10 @@ class PlanrulePromptBuilderTest {
         scope.setDenied("基金相关业务、股票相关业务、保险相关业务");
         planrule.setScope(scope);
 
-        planrule.setSupplementaryPrompt("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。");
+        PlanRuleConfig.SupplementaryPrompt suppPrompt6 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt6.setBaseProtocol("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。");
+        suppPrompt6.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt6);
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 
@@ -372,7 +390,11 @@ class PlanrulePromptBuilderTest {
         routes.add(r2);
 
         planrule.setSkillRouting(routes);
-        planrule.setSupplementaryPrompt("你采用ReAct循环。");
+
+        PlanRuleConfig.SupplementaryPrompt suppPrompt7 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt7.setBaseProtocol("你采用ReAct循环。");
+        suppPrompt7.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt7);
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 
@@ -455,7 +477,10 @@ class PlanrulePromptBuilderTest {
         routes.add(r4);
         planrule.setSkillRouting(routes);
 
-        planrule.setSupplementaryPrompt("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。");
+        PlanRuleConfig.SupplementaryPrompt suppPrompt8 = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt8.setBaseProtocol("你采用「规划—执行—观察—反思」ReAct 循环处理用户请求。");
+        suppPrompt8.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt8);
 
         String result = PlanrulePromptBuilder.buildSystemPromptFragment(planrule);
 

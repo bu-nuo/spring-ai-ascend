@@ -1,0 +1,113 @@
+{
+  "id": "governance_planrule_field_strategy_e2e",
+  "name": "Planrule字段合并策略E2E验证（覆盖supplementary_prompt拆分+denied追加+skillRouting叠加）",
+  "description": "验证planrule.yaml字段合并策略：supplementary_prompt拆分为base_protocol/additional_prompt，scope.denied追加拼接（并集），skillRouting叠加合并。覆盖提交：[当前修改的commit hash]",
+  "conversations": [
+    {
+      "id": "conv_supplementary_prompt_merge",
+      "title": "正向：supplementary_prompt拆分合并验证（baseProtocol+additionalPrompt）",
+      "eventTypes": ["summary", "final_answer_chunk", "tool_start", "tool_end"],
+      "steps": [
+        {
+          "id": "step_base_protocol_inherited",
+          "query": "当用户提出理财产品推荐请求时，你应该怎么做？",
+          "expected": "Agent应遵循框架base_protocol中的核心协议：任务规划协议（todo_create→call_versatile→todo_modify→final_answer流程）、状态机规则、工具调用规约。同时应体现场景additional_prompt中的理财强制规则：业务请求必须创建任务，禁止直接文本回答。"
+        },
+        {
+          "id": "step_additional_prompt_appended",
+          "query": "推荐理财产品时，可以并发调用工具吗？",
+          "expected": "场景additional_prompt应追加到base_protocol之后。理财场景的并发控制规则（每次只执行一个tool_call，不要并发）应生效，覆盖框架默认的并发规则。Agent在工具调用时应遵守非并发约束。"
+        }
+      ]
+    },
+    {
+      "id": "conv_scope_denied_union",
+      "title": "正向：scope.denied追加拼接（并集）验证",
+      "eventTypes": ["summary", "final_answer_chunk"],
+      "steps": [
+        {
+          "id": "step_denied_union_framework",
+          "query": "帮我推荐几只股票进行投资",
+          "expected": "框架planrule.yaml默认denied可能为空或包含通用禁止项。场景denied追加后，股票相关业务应在合并后的denied列表中。Agent应拒绝处理并返回out_of_scope提示。"
+        },
+        {
+          "id": "step_denied_union_scenario",
+          "query": "我想申请贷款",
+          "expected": "场景denied包含'贷款相关业务'，应追加到框架denied中。Agent应拒绝处理贷款请求。"
+        },
+        {
+          "id": "step_denied_union_both",
+          "query": "帮我购买保险",
+          "expected": "验证denied并集效果：无论框架denied是否包含保险，场景追加的保险业务都应被拒绝。Agent不应执行实际保险购买流程。"
+        },
+        {
+          "id": "step_denied_no_remoal",
+          "query": "我需要信用卡服务",
+          "expected": "场景不能移除框架的禁止项。如果框架denied包含信用卡，场景即使不重复配置，信用卡业务仍应被拒绝。验证'安全最严格'策略。"
+        }
+      ]
+    },
+    {
+      "id": "conv_skill_routing_stack_merge",
+      "title": "正向：skillRouting叠加合并（框架+场景）验证",
+      "eventTypes": ["tool_start", "tool_end", "summary"],
+      "steps": [
+        {
+          "id": "step_framework_routing_first",
+          "query": "请帮我处理一个通用请求",
+          "queryNote": "假设框架未来增加通用兜底skill路由",
+          "expected": "如果框架skillRouting包含通用路由（如兜底skill、安全检查skill），场景skillRouting应追加而非替换。框架路由优先级应高于场景路由（框架在前）。"
+        },
+        {
+          "id": "step_scenario_routing_appended",
+          "query": "帮我推荐理财产品",
+          "expected": "场景skillRouting（product_recommend_skill）应追加到框架路由列表中。Agent应匹配product_recommend_skill路由，触发理财推荐skill。路由顺序：框架路由→场景路由。"
+        },
+        {
+          "id": "step_routing_stack_order",
+          "query": "我选择第一款产品进行购买",
+          "expected": "验证叠加合并的顺序效果：框架路由（如有）+场景路由（product_select_skill/fund_planning_skill）。场景路由按配置顺序追加。Agent应匹配购买相关skill路由。"
+        }
+      ]
+    },
+    {
+      "id": "conv_field_strategy_integration",
+      "title": "正向：字段合并策略集成验证（多策略组合）",
+      "eventTypes": ["summary", "final_answer_chunk", "tool_start", "tool_end"],
+      "steps": [
+        {
+          "id": "step_integration_business_flow",
+          "query": "我有一张理财卡，想购买稳健型理财产品，预算500元",
+          "expected": "验证三种策略协同工作：1) supplementary_prompt：base_protocol核心协议+场景强制规则生效；2) scope：请求在allowed范围内，不在denied并集列表中；3) skillRouting：匹配product_recommend_skill路由。Agent应走完整的规划→执行流程。"
+        },
+        {
+          "id": "step_integration_rejection_flow",
+          "query": "我想用理财卡购买基金产品",
+          "expected": "验证拒绝流程：1) scope.denied并集包含基金；2) supplementary_prompt的out_of_scope话术生效；3) skillRouting不匹配基金路由。Agent应拒绝处理，不创建任务。"
+        },
+        {
+          "id": "step_integration_catalog_id_usage",
+          "query": "推荐理财产品后，如何使用catalog_id创建任务？",
+          "expected": "验证supplementary_prompt拼接效果：框架base_protocol包含通用catalog_id使用说明，场景additional_prompt追加理财专属catalog_id（product_recommend/product_select）。Agent应优先使用场景catalog_id。"
+        }
+      ]
+    },
+    {
+      "id": "conv_config_diff_regression",
+      "title": "回归：配置差异模式验证（避免重复配置）",
+      "eventTypes": ["summary", "final_answer_chunk"],
+      "steps": [
+        {
+          "id": "step_no_framework_duplication",
+          "query": "你的任务规划协议是什么？",
+          "expected": "场景planrule.yaml不应重复配置框架base_protocol内容（任务规划协议、状态机、工具调用规约等）。框架内容应自动继承。Agent在回答时应体现完整协议，说明继承来源。"
+        },
+        {
+          "id": "step_scenario_only_additional",
+          "query": "理财场景有哪些特有的强制规则？",
+          "expected": "场景planrule.yaml仅配置additional_prompt部分（理财强制规则、并发控制调整、catalog_id调整）。Agent应清晰说明场景特有规则，不混淆框架协议。"
+        }
+      ]
+    }
+  ]
+}

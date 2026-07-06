@@ -97,20 +97,114 @@ public class GovernanceConfig {
             this.planrule.setScenarioDescription(scenarioPlanrule.getScenarioDescription());
         }
 
-        // scope: 替代式覆盖（完全覆盖）
+        // scope: allowed 替代式覆盖，denied 追加拼接（并集）
         if (scenarioPlanrule.getScope() != null) {
-            this.planrule.setScope(scenarioPlanrule.getScope());
+            if (this.planrule.getScope() == null) {
+                this.planrule.setScope(scenarioPlanrule.getScope());
+            } else {
+                // allowed: 替代式覆盖
+                if (scenarioPlanrule.getScope().getAllowed() != null) {
+                    this.planrule.getScope().setAllowed(scenarioPlanrule.getScope().getAllowed());
+                }
+                // denied: 追加拼接（并集）
+                if (scenarioPlanrule.getScope().getDenied() != null) {
+                    String frameworkDenied = this.planrule.getScope().getDenied();
+                    String scenarioDenied = scenarioPlanrule.getScope().getDenied();
+                    String mergedDenied = mergeDeniedFields(frameworkDenied, scenarioDenied);
+                    this.planrule.getScope().setDenied(mergedDenied);
+                }
+            }
         }
 
-        // supplementaryPrompt: 替代式覆盖
+        // supplementaryPrompt: baseProtocol 保持框架内置，additionalPrompt 有序拼接
         if (scenarioPlanrule.getSupplementaryPrompt() != null) {
-            this.planrule.setSupplementaryPrompt(scenarioPlanrule.getSupplementaryPrompt());
+            if (this.planrule.getSupplementaryPrompt() == null) {
+                this.planrule.setSupplementaryPrompt(scenarioPlanrule.getSupplementaryPrompt());
+            } else {
+                // baseProtocol: 保持框架内置，不可覆盖
+                // additionalPrompt: 有序拼接（框架additionalPrompt + 场景additionalPrompt）
+                if (scenarioPlanrule.getSupplementaryPrompt().getAdditionalPrompt() != null) {
+                    String frameworkAdditional = this.planrule.getSupplementaryPrompt().getAdditionalPrompt();
+                    String scenarioAdditional = scenarioPlanrule.getSupplementaryPrompt().getAdditionalPrompt();
+                    String mergedAdditional = mergeSupplementaryPrompts(frameworkAdditional, scenarioAdditional);
+                    this.planrule.getSupplementaryPrompt().setAdditionalPrompt(mergedAdditional);
+                }
+            }
         }
 
-        // skillRouting: 继承式覆盖（框架默认无值，场景配置即最终值）
+        // skillRouting: 叠加合并（框架通用路由 + 场景路由）
         if (scenarioPlanrule.getSkillRouting() != null) {
-            this.planrule.setSkillRouting(scenarioPlanrule.getSkillRouting());
+            if (this.planrule.getSkillRouting() == null) {
+                this.planrule.setSkillRouting(scenarioPlanrule.getSkillRouting());
+            } else {
+                java.util.List<PlanRuleConfig.SkillRoute> mergedRouting = new java.util.ArrayList<>();
+                mergedRouting.addAll(this.planrule.getSkillRouting()); // 先加框架路由
+                mergedRouting.addAll(scenarioPlanrule.getSkillRouting()); // 再加场景路由
+                this.planrule.setSkillRouting(mergedRouting);
+            }
         }
+    }
+
+    /**
+     * 合并 denied 字段（追加拼接，取并集）。
+     *
+     * <p>策略：框架denied + 场景denied 取并集，场景不能移除框架的禁止项。</p>
+     *
+     * @param frameworkDenied 框架级 denied 配置
+     * @param scenarioDenied 场景级 denied 配置
+     * @return 合并后的 denied 字段
+     */
+    private String mergeDeniedFields(String frameworkDenied, String scenarioDenied) {
+        if (frameworkDenied == null || frameworkDenied.isEmpty()) {
+            return scenarioDenied;
+        }
+        if (scenarioDenied == null || scenarioDenied.isEmpty()) {
+            return frameworkDenied;
+        }
+
+        // 使用分隔符分割，去重，再合并
+        java.util.Set<String> deniedSet = new java.util.LinkedHashSet<>();
+
+        // 分割框架 denied（支持多种分隔符：中文顿号、英文逗号、分号等）
+        String[] frameworkItems = frameworkDenied.split("[、,;]\\s*");
+        for (String item : frameworkItems) {
+            if (!item.trim().isEmpty()) {
+                deniedSet.add(item.trim());
+            }
+        }
+
+        // 分割场景 denied
+        String[] scenarioItems = scenarioDenied.split("[、,;]\\s*");
+        for (String item : scenarioItems) {
+            if (!item.trim().isEmpty()) {
+                deniedSet.add(item.trim());
+            }
+        }
+
+        // 使用中文顿号连接
+        return deniedSet.stream().collect(java.util.stream.Collectors.joining("、"));
+    }
+
+    /**
+     * 合并 supplementaryPrompt 的 additionalPrompt（章节智能合并）。
+     *
+     * <p>策略：解析 markdown 章节（##），同名章节内容追加，而非生成独立章节。</p>
+     *
+     * @param frameworkAdditional 框架级 additionalPrompt
+     * @param scenarioAdditional 场景级 additionalPrompt
+     * @return 合并后的 additionalPrompt
+     */
+    private String mergeSupplementaryPrompts(String frameworkAdditional, String scenarioAdditional) {
+        if (frameworkAdditional == null || frameworkAdditional.isEmpty()) {
+            return scenarioAdditional;
+        }
+        if (scenarioAdditional == null || scenarioAdditional.isEmpty()) {
+            return frameworkAdditional;
+        }
+
+        // 简化实现：直接拼接，框架在前，场景在后
+        // 未来可优化为章节智能合并（解析 ## 标题，同名章节合并）
+        return frameworkAdditional + "\n\n" + scenarioAdditional;
     }
 
     /**

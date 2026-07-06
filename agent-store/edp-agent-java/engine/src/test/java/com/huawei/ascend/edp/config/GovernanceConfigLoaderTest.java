@@ -374,4 +374,123 @@ class GovernanceConfigLoaderTest {
         assertEquals("fund_planning_skill", config.getPlanrule().getSkillRouting().get(0).getSkill());
         assertEquals(1, config.getPlanrule().getSkillRouting().get(0).getPriority());
     }
+
+    @Test
+    @DisplayName("测试9：scope.denied 的追加拼接（并集）策略")
+    void testScopeDeniedMergeUnion() throws Exception {
+        // 准备框架级配置（含 denied）
+        Path frameworkDir = tempDir.resolve("framework-denied");
+        Files.createDirectories(frameworkDir);
+        String frameworkPlanrule = "planrule:\n" +
+                "  scope:\n" +
+                "    allowed: '通用业务范围'\n" +
+                "    denied: '基金相关业务、股票相关业务'\n";
+        Files.writeString(frameworkDir.resolve("planrule.yaml"), frameworkPlanrule);
+        createMinimalActruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（含 denied）
+        Path scenarioDir = tempDir.resolve("scenario-denied");
+        Files.createDirectories(scenarioDir);
+        String scenarioPlanrule = "planrule:\n" +
+                "  scope:\n" +
+                "    allowed: '理财产品推荐、筛选、购买'\n" +
+                "    denied: '保险相关业务、贷款相关业务'\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), scenarioPlanrule);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：allowed 替代式覆盖
+        assertEquals("理财产品推荐、筛选、购买", mergedConfig.getPlanrule().getScope().getAllowed(),
+                "allowed 应替代式覆盖");
+
+        // 验证：denied 追加拼接（并集）
+        String mergedDenied = mergedConfig.getPlanrule().getScope().getDenied();
+        assertTrue(mergedDenied.contains("基金相关业务"), "应保留框架的基金禁止项");
+        assertTrue(mergedDenied.contains("股票相关业务"), "应保留框架的股票禁止项");
+        assertTrue(mergedDenied.contains("保险相关业务"), "应追加场景的保险禁止项");
+        assertTrue(mergedDenied.contains("贷款相关业务"), "应追加场景的贷款禁止项");
+        // 验证无重复项
+        String[] items = mergedDenied.split("、");
+        assertEquals(4, items.length, "并集后应有4个禁止项");
+    }
+
+    @Test
+    @DisplayName("测试10：supplementary_prompt 的拆分和合并")
+    void testSupplementaryPromptSplitMerge() throws Exception {
+        // 准备框架级配置（含 base_protocol 和 additional_prompt）
+        Path frameworkDir = tempDir.resolve("framework-prompt");
+        Files.createDirectories(frameworkDir);
+        String frameworkPlanrule = "planrule:\n" +
+                "  supplementary_prompt:\n" +
+                "    base_protocol: '框架核心协议内容'\n" +
+                "    additional_prompt: '框架默认补充说明'\n";
+        Files.writeString(frameworkDir.resolve("planrule.yaml"), frameworkPlanrule);
+        createMinimalActruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（仅含 additional_prompt）
+        Path scenarioDir = tempDir.resolve("scenario-prompt");
+        Files.createDirectories(scenarioDir);
+        String scenarioPlanrule = "planrule:\n" +
+                "  supplementary_prompt:\n" +
+                "    additional_prompt: '理财场景特有规则'\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), scenarioPlanrule);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：base_protocol 保持框架内置，不可覆盖
+        assertEquals("框架核心协议内容", mergedConfig.getPlanrule().getSupplementaryPrompt().getBaseProtocol(),
+                "base_protocol 应保持框架内置");
+
+        // 验证：additional_prompt 有序拼接（框架 + 场景）
+        String mergedAdditional = mergedConfig.getPlanrule().getSupplementaryPrompt().getAdditionalPrompt();
+        assertTrue(mergedAdditional.contains("框架默认补充说明"), "应包含框架的 additional_prompt");
+        assertTrue(mergedAdditional.contains("理财场景特有规则"), "应追加场景的 additional_prompt");
+        assertTrue(mergedAdditional.contains("\n\n"), "拼接应使用双换行分隔");
+    }
+
+    @Test
+    @DisplayName("测试11：skill_routing 的叠加合并（框架 + 场景）")
+    void testSkillRoutingStackMerge() throws Exception {
+        // 准备框架级配置（含 skill_routing）
+        Path frameworkDir = tempDir.resolve("framework-routing");
+        Files.createDirectories(frameworkDir);
+        String frameworkPlanrule = "planrule:\n" +
+                "  skill_routing:\n" +
+                "    - trigger: '框架通用触发条件'\n" +
+                "      skill: 'framework_skill'\n" +
+                "      priority: 1\n";
+        Files.writeString(frameworkDir.resolve("planrule.yaml"), frameworkPlanrule);
+        createMinimalActruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（含 skill_routing）
+        Path scenarioDir = tempDir.resolve("scenario-routing");
+        Files.createDirectories(scenarioDir);
+        String scenarioPlanrule = "planrule:\n" +
+                "  skill_routing:\n" +
+                "    - trigger: '理财场景触发条件'\n" +
+                "      skill: 'wealth_skill'\n" +
+                "      priority: 2\n";
+        Files.writeString(scenarioDir.resolve("planrule.yaml"), scenarioPlanrule);
+        createMinimalActruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：叠加合并（框架路由 + 场景路由）
+        assertNotNull(mergedConfig.getPlanrule().getSkillRouting(), "skillRouting 应存在");
+        assertEquals(2, mergedConfig.getPlanrule().getSkillRouting().size(), "应有 2 条路由规则（框架1条+场景1条）");
+
+        // 验证顺序：框架在前，场景在后
+        PlanRuleConfig.SkillRoute frameworkRoute = mergedConfig.getPlanrule().getSkillRouting().get(0);
+        assertEquals("框架通用触发条件", frameworkRoute.getTrigger(), "第一条应为框架路由");
+        assertEquals("framework_skill", frameworkRoute.getSkill());
+
+        PlanRuleConfig.SkillRoute scenarioRoute = mergedConfig.getPlanrule().getSkillRouting().get(1);
+        assertEquals("理财场景触发条件", scenarioRoute.getTrigger(), "第二条应为场景路由");
+        assertEquals("wealth_skill", scenarioRoute.getSkill());
+    }
 }

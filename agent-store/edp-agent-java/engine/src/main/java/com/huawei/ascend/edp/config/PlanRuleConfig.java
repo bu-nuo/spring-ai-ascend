@@ -29,8 +29,8 @@ public class PlanRuleConfig {
     /** Agent职责边界配置。 */
     private Scope scope;
 
-    /** 补充提示词（行为约束规则）。 */
-    private String supplementaryPrompt;
+    /** 补充提示词（行为约束规则）。包含框架内置的 baseProtocol 和场景追加的 additionalPrompt。 */
+    private SupplementaryPrompt supplementaryPrompt;
 
     /** Skill路由规则列表（继承式覆盖）。框架默认无值，仅场景级配置。 */
     private java.util.List<SkillRoute> skillRouting;
@@ -50,8 +50,8 @@ public class PlanRuleConfig {
     public Scope getScope() { return scope; }
     public void setScope(Scope scope) { this.scope = scope; }
 
-    public String getSupplementaryPrompt() { return supplementaryPrompt; }
-    public void setSupplementaryPrompt(String supplementaryPrompt) { this.supplementaryPrompt = supplementaryPrompt; }
+    public SupplementaryPrompt getSupplementaryPrompt() { return supplementaryPrompt; }
+    public void setSupplementaryPrompt(SupplementaryPrompt supplementaryPrompt) { this.supplementaryPrompt = supplementaryPrompt; }
 
     public java.util.List<SkillRoute> getSkillRouting() { return skillRouting; }
     public void setSkillRouting(java.util.List<SkillRoute> skillRouting) { this.skillRouting = skillRouting; }
@@ -63,7 +63,7 @@ public class PlanRuleConfig {
         /** 允许的业务范围列表（替代式覆盖）。 */
         private String allowed;
 
-        /** 禁止的业务范围列表（替代式覆盖）。 */
+        /** 禁止的业务范围列表（追加拼接：框架denied + 场景denied取并集）。 */
         private String denied;
 
         public String getAllowed() { return allowed; }
@@ -71,6 +71,26 @@ public class PlanRuleConfig {
 
         public String getDenied() { return denied; }
         public void setDenied(String denied) { this.denied = denied; }
+    }
+
+    /**
+     * 补充提示词配置。
+     *
+     * <p>包含框架内置的 baseProtocol 和场景追加的 additionalPrompt。</p>
+     * <p>合并策略：章节智能合并，同名章节内容追加而非生成独立章节。</p>
+     */
+    public static class SupplementaryPrompt {
+        /** 框架内置协议（不可覆盖）。包含任务规划协议、工具调用规约等核心规则。 */
+        private String baseProtocol;
+
+        /** 场景追加提示词（有序拼接）。可为 null 或空字符串。 */
+        private String additionalPrompt;
+
+        public String getBaseProtocol() { return baseProtocol; }
+        public void setBaseProtocol(String baseProtocol) { this.baseProtocol = baseProtocol; }
+
+        public String getAdditionalPrompt() { return additionalPrompt; }
+        public void setAdditionalPrompt(String additionalPrompt) { this.additionalPrompt = additionalPrompt; }
     }
 
     /**

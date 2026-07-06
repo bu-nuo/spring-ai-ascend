@@ -41,7 +41,10 @@ class EdpaRuntimeHandlerGovernanceTest {
         scope.setDenied(" ");
         planrule.setScope(scope);
 
-        planrule.setSupplementaryPrompt("## 二、行为约束\n\n行为约束：\n1. 当用户表达修改意图，暂停当前任务，重新规划");
+        PlanRuleConfig.SupplementaryPrompt suppPrompt = new PlanRuleConfig.SupplementaryPrompt();
+        suppPrompt.setBaseProtocol("## 二、行为约束\n\n行为约束：\n1. 当用户表达修改意图，暂停当前任务，重新规划");
+        suppPrompt.setAdditionalPrompt("");
+        planrule.setSupplementaryPrompt(suppPrompt);
         governance.setPlanrule(planrule);
 
         // 使用反射调用buildFullSystemPrompt()方法（仅 governance 参数）

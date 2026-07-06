@@ -122,9 +122,7 @@ class GovernanceConfigLoaderTest {
         assertNotNull(config.getScriptconfig().getThinkChunkScripts(), "thinkChunkScripts配置应存在");
         assertEquals("fixed_script", config.getScriptconfig().getThinkChunkScripts().getThinkChunkMode(), "thinkChunkMode字段应正确解析");
         
-        // 验证summary配置
-        assertNotNull(config.getScriptconfig().getSummary(), "summary配置应存在");
-        assertEquals(500, config.getScriptconfig().getSummary().getMaxLength(), "maxLength字段应正确解析");
+        // Summary字段已删除，不再验证getSummary()
     }
 
     @Test

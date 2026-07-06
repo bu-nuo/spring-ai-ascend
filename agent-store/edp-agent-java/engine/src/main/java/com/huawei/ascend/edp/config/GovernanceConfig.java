@@ -216,12 +216,22 @@ public class GovernanceConfig {
             return;
         }
 
-        // 继承式覆盖：只写差异，未覆盖字段自动继承Default值
+        // 资源限制类字段：继承（取min，场景不能放宽框架上限）
         if (scenarioActrule.getMaxSubtasks() != null) {
-            this.actrule.setMaxSubtasks(scenarioActrule.getMaxSubtasks());
+            Integer frameworkValue = this.actrule.getMaxSubtasks();
+            Integer scenarioValue = scenarioActrule.getMaxSubtasks();
+            Integer mergedValue = (frameworkValue != null) 
+                ? Math.min(frameworkValue, scenarioValue) 
+                : scenarioValue;
+            this.actrule.setMaxSubtasks(mergedValue);
         }
         if (scenarioActrule.getMaxSteps() != null) {
-            this.actrule.setMaxSteps(scenarioActrule.getMaxSteps());
+            Integer frameworkValue = this.actrule.getMaxSteps();
+            Integer scenarioValue = scenarioActrule.getMaxSteps();
+            Integer mergedValue = (frameworkValue != null) 
+                ? Math.min(frameworkValue, scenarioValue) 
+                : scenarioValue;
+            this.actrule.setMaxSteps(mergedValue);
         }
         if (scenarioActrule.getAllowedTools() != null) {
             // 叠加合并：框架工具 + 场景扩展工具，去重但保持顺序
@@ -236,8 +246,27 @@ public class GovernanceConfig {
         if (scenarioActrule.getSkillMode() != null) {
             this.actrule.setSkillMode(scenarioActrule.getSkillMode());
         }
+        // toolLimits: 逐key合并，场景只声明需要调整的工具，限制值取min（场景不能放宽框架限制）
         if (scenarioActrule.getToolLimits() != null) {
-            this.actrule.setToolLimits(scenarioActrule.getToolLimits());
+            if (this.actrule.getToolLimits() == null) {
+                this.actrule.setToolLimits(scenarioActrule.getToolLimits());
+            } else {
+                // 逐key合并：框架toolLimits + 场景toolLimits，同key取min
+                java.util.Map<String, Integer> mergedToolLimits = new java.util.HashMap<>(this.actrule.getToolLimits());
+                for (java.util.Map.Entry<String, Integer> entry : scenarioActrule.getToolLimits().entrySet()) {
+                    String toolName = entry.getKey();
+                    Integer scenarioLimit = entry.getValue();
+                    Integer frameworkLimit = mergedToolLimits.get(toolName);
+                    // 场景只能设更小值，不能放宽框架限制
+                    if (frameworkLimit != null) {
+                        mergedToolLimits.put(toolName, Math.min(frameworkLimit, scenarioLimit));
+                    } else {
+                        // 框架无该工具限制，场景新增限制
+                        mergedToolLimits.put(toolName, scenarioLimit);
+                    }
+                }
+                this.actrule.setToolLimits(mergedToolLimits);
+            }
         }
 
         // todolistEntries: 替代式覆盖（场景提供完整定义，框架默认无值）

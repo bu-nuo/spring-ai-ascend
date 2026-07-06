@@ -493,4 +493,104 @@ class GovernanceConfigLoaderTest {
         assertEquals("理财场景触发条件", scenarioRoute.getTrigger(), "第二条应为场景路由");
         assertEquals("wealth_skill", scenarioRoute.getSkill());
     }
+
+    @Test
+    @DisplayName("测试14：actrule.maxSubtasks/maxSteps资源限制min合并")
+    void testResourceLimitsMinMerge() throws Exception {
+        // 准备框架级配置
+        Path frameworkDir = tempDir.resolve("framework-resource");
+        Files.createDirectories(frameworkDir);
+        String frameworkActrule = "actrule:\n" +
+                "  max_subtasks: 50\n" +
+                "  max_steps: 100\n";
+        Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
+        createMinimalPlanruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（收紧框架上限）
+        Path scenarioDir = tempDir.resolve("scenario-resource");
+        Files.createDirectories(scenarioDir);
+        String scenarioActrule = "actrule:\n" +
+                "  max_subtasks: 30\n" +  // 收紧框架上限（30 < 50）
+                "  max_steps: 80\n";       // 收紧框架步数上限（80 < 100）
+        Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
+        createMinimalPlanruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：资源限制取min（场景不能放宽框架上限）
+        assertEquals(30, mergedConfig.getActrule().getMaxSubtasks(), "maxSubtasks应取min（30）");
+        assertEquals(80, mergedConfig.getActrule().getMaxSteps(), "maxSteps应取min（80）");
+    }
+
+    @Test
+    @DisplayName("测试15：actrule.toolLimits逐key合并（取min）")
+    void testToolLimitsKeyMerge() throws Exception {
+        // 准备框架级配置
+        Path frameworkDir = tempDir.resolve("framework-tool");
+        Files.createDirectories(frameworkDir);
+        String frameworkActrule = "actrule:\n" +
+                "  tool_limits:\n" +
+                "    call_versatile: 50\n" +
+                "    call_mcp: 50\n" +
+                "    ask_user: 50\n";
+        Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
+        createMinimalPlanruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置
+        Path scenarioDir = tempDir.resolve("scenario-tool");
+        Files.createDirectories(scenarioDir);
+        String scenarioActrule = "actrule:\n" +
+                "  tool_limits:\n" +
+                "    call_versatile: 30\n" +  // 收紧框架限制（30 < 50）
+                "    call_mcp: 20\n" +         // 收紧框架限制（20 < 50）
+                "    execute_cmd: 10\n";       // 新增工具限制（框架无此限制）
+        Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
+        createMinimalPlanruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：逐key合并，取min
+        assertNotNull(mergedConfig.getActrule().getToolLimits(), "toolLimits应存在");
+        assertEquals(30, mergedConfig.getActrule().getToolLimits().get("call_versatile"), "call_versatile应取min（30）");
+        assertEquals(20, mergedConfig.getActrule().getToolLimits().get("call_mcp"), "call_mcp应取min（20）");
+        assertEquals(50, mergedConfig.getActrule().getToolLimits().get("ask_user"), "ask_user应保持框架值（50）");
+        assertEquals(10, mergedConfig.getActrule().getToolLimits().get("execute_cmd"), "execute_cmd应为新增限制（10）");
+        assertEquals(4, mergedConfig.getActrule().getToolLimits().size(), "应有4个工具限制");
+    }
+
+    @Test
+    @DisplayName("测试16：actrule场景放宽框架上限应被拒绝（验证min策略）")
+    void testResourceLimitsCannotRelax() throws Exception {
+        // 准备框架级配置
+        Path frameworkDir = tempDir.resolve("framework-relax");
+        Files.createDirectories(frameworkDir);
+        String frameworkActrule = "actrule:\n" +
+                "  max_subtasks: 50\n" +
+                "  max_steps: 100\n" +
+                "  tool_limits:\n" +
+                "    call_versatile: 50\n";
+        Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
+        createMinimalPlanruleAndScriptconfig(frameworkDir);
+
+        // 准备场景级配置（尝试放宽框架上限，应被拒绝）
+        Path scenarioDir = tempDir.resolve("scenario-relax");
+        Files.createDirectories(scenarioDir);
+        String scenarioActrule = "actrule:\n" +
+                "  max_subtasks: 80\n" +  // 尝试放宽框架上限（80 > 50，应被拒绝）
+                "  max_steps: 150\n" +    // 尝试放宽框架步数上限（150 > 100，应被拒绝）
+                "  tool_limits:\n" +
+                "    call_versatile: 80\n"; // 尝试放宽框架限制（80 > 50，应被拒绝）
+        Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
+        createMinimalPlanruleAndScriptconfig(scenarioDir);
+
+        // 执行优先级加载
+        GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
+
+        // 验证：场景放宽框架上限应被拒绝，应取min（框架上限）
+        assertEquals(50, mergedConfig.getActrule().getMaxSubtasks(), "maxSubtasks应保持框架上限（50），拒绝场景放宽");
+        assertEquals(100, mergedConfig.getActrule().getMaxSteps(), "maxSteps应保持框架上限（100），拒绝场景放宽");
+        assertEquals(50, mergedConfig.getActrule().getToolLimits().get("call_versatile"), "call_versatile应保持框架限制（50），拒绝场景放宽");
+    }
 }

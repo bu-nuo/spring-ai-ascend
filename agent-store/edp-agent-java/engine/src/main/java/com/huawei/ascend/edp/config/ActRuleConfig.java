@@ -16,10 +16,10 @@ import java.util.Map;
  */
 public class ActRuleConfig {
 
-    /** 限制单层最大子任务数量。 */
+    /** 限制单层最大子任务数量（资源限制类字段，继承时取min，场景不能放宽框架上限）。 */
     private Integer maxSubtasks;
 
-    /** 限制最大执行步数。 */
+    /** 限制最大执行步数（资源限制类字段，继承时取min，场景不能放宽框架步数上限）。 */
     private Integer maxSteps;
 
     /** 允许调用的工具列表（继承式覆盖）。 */
@@ -33,7 +33,7 @@ public class ActRuleConfig {
      */
     private String skillMode;
 
-    /** 单个工具调用次数上限，key 为工具名，value 为上限值。 */
+    /** 单个工具调用次数上限（逐key合并，key为工具名，value为上限值，场景只能设更小值不能放宽框架限制）。 */
     private Map<String, Integer> toolLimits;
 
     public Integer getMaxSubtasks() { return maxSubtasks; }

@@ -21,9 +21,6 @@ public class ScriptConfig {
     /** 思维链话术配置。 */
     private ThinkChunkScripts thinkChunkScripts;
 
-    /** 执行总结格式配置。 */
-    private Summary summary;
-
     /** ask_user 中断确认话术配置。 */
     private AskUserConfirm askUserConfirm;
 
@@ -32,9 +29,6 @@ public class ScriptConfig {
 
     public ThinkChunkScripts getThinkChunkScripts() { return thinkChunkScripts; }
     public void setThinkChunkScripts(ThinkChunkScripts thinkChunkScripts) { this.thinkChunkScripts = thinkChunkScripts; }
-
-    public Summary getSummary() { return summary; }
-    public void setSummary(Summary summary) { this.summary = summary; }
 
     public AskUserConfirm getAskUserConfirm() { return askUserConfirm; }
     public void setAskUserConfirm(AskUserConfirm askUserConfirm) { this.askUserConfirm = askUserConfirm; }
@@ -114,14 +108,28 @@ public class ScriptConfig {
      * 固定话术帧配置。
      */
     public static class ThinkChunkFixedScripts {
+        /** 是否启用固定话术帧（布尔开关，继承式覆盖）。 */
         private Boolean enabled;
+        
+        /** 每帧字符数（资源限制类字段，继承时取min，场景不能放宽框架限制）。 */
         private Integer charsPerFrame;
+        
+        /** 帧间token数（资源限制类字段，继承时取min，场景不能放宽框架限制）。 */
         private Integer tokensBetweenFrames;
+        
+        /** 最小间隔毫秒数（资源限制类字段，继承时取min，场景不能放宽框架限制）。 */
         private Integer minIntervalMs;
+        
+        /** 默认话术列表（替代式覆盖，场景有配置时以场景替代框架默认）。 */
         private List<String> defaultScripts;
+        
+        /** 执行阶段话术列表（替代式覆盖，场景有配置时以场景替代框架默认）。 */
         private List<String> executionScripts;
+        
+        /** 续轮话术列表（替代式覆盖，场景有配置时以场景替代框架默认）。 */
         private List<String> resumeScripts;
-        /** 按用户 query 关键词匹配的话术组列表（planning 阶段，继承式覆盖）。 */
+        
+        /** 按用户 query 关键词匹配的话术组列表（planning 阶段，追加策略：框架通用模式 + 场景业务关键词）。 */
         private List<QueryPattern> queryPatterns;
 
         public Boolean getEnabled() { return enabled; }
@@ -160,24 +168,6 @@ public class ScriptConfig {
             public List<String> getScripts() { return scripts; }
             public void setScripts(List<String> scripts) { this.scripts = scripts; }
         }
-    }
-
-    /**
-     * 执行总结格式配置。
-     */
-    public static class Summary {
-        private String format;
-        private Integer maxLength;
-        private List<String> requiredFields;
-
-        public String getFormat() { return format; }
-        public void setFormat(String format) { this.format = format; }
-
-        public Integer getMaxLength() { return maxLength; }
-        public void setMaxLength(Integer maxLength) { this.maxLength = maxLength; }
-
-        public List<String> getRequiredFields() { return requiredFields; }
-        public void setRequiredFields(List<String> requiredFields) { this.requiredFields = requiredFields; }
     }
 
     /**

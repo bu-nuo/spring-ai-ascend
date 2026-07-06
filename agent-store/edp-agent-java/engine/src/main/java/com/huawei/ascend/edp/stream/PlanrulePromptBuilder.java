@@ -110,9 +110,17 @@ public class PlanrulePromptBuilder {
             }
         }
 
-        // 6. 补充提示词（supplementaryPrompt字段）- 直接拼接，内容灵活（可以是行为约束、使用说明、注意事项等）
-        if (isNotEmpty(planrule.getSupplementaryPrompt())) {
-            sb.append(planrule.getSupplementaryPrompt()).append("\n");
+        // 6. 补充提示词（supplementaryPrompt字段）- 拼接 baseProtocol + additionalPrompt
+        if (planrule.getSupplementaryPrompt() != null) {
+            PlanRuleConfig.SupplementaryPrompt suppPrompt = planrule.getSupplementaryPrompt();
+            // baseProtocol（框架内置）
+            if (isNotEmpty(suppPrompt.getBaseProtocol())) {
+                sb.append(suppPrompt.getBaseProtocol()).append("\n");
+            }
+            // additionalPrompt（场景追加）
+            if (isNotEmpty(suppPrompt.getAdditionalPrompt())) {
+                sb.append(suppPrompt.getAdditionalPrompt()).append("\n");
+            }
         }
 
         String result = sb.toString().trim();

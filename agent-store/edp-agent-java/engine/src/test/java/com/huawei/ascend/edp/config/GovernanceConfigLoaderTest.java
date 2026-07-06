@@ -661,7 +661,7 @@ class GovernanceConfigLoaderTest {
 
     @Test
     @DisplayName("测试19：scriptconfig资源限制字段取min策略验证")
-    void testScriptconfigResourceLimitsMinMerge() throws IOException {
+    void testScriptconfigResourceLimitsMinMerge() throws Exception {
         Path tempDir = Files.createTempDirectory("scriptconfig-test");
         Path frameworkDir = tempDir.resolve("framework-resource");
         Files.createDirectories(frameworkDir);
@@ -701,7 +701,7 @@ class GovernanceConfigLoaderTest {
 
     @Test
     @DisplayName("测试20：scriptconfig话术字段替代策略验证")
-    void testScriptconfigScriptsReplace() throws IOException {
+    void testScriptconfigScriptsReplace() throws Exception {
         Path tempDir = Files.createTempDirectory("scriptconfig-test");
         Path frameworkDir = tempDir.resolve("framework-resource");
         Files.createDirectories(frameworkDir);
@@ -750,7 +750,7 @@ class GovernanceConfigLoaderTest {
 
     @Test
     @DisplayName("测试21：scriptconfig queryPatterns追加策略验证")
-    void testScriptconfigQueryPatternsAppend() throws IOException {
+    void testScriptconfigQueryPatternsAppend() throws Exception {
         Path tempDir = Files.createTempDirectory("scriptconfig-test");
         Path frameworkDir = tempDir.resolve("framework-resource");
         Files.createDirectories(frameworkDir);
@@ -798,7 +798,7 @@ class GovernanceConfigLoaderTest {
 
     @Test
     @DisplayName("测试22：scriptconfig summary字段已删除验证")
-    void testScriptconfigSummaryDeleted() throws IOException {
+    void testScriptconfigSummaryDeleted() throws Exception {
         Path tempDir = Files.createTempDirectory("scriptconfig-test");
         Path frameworkDir = tempDir.resolve("framework-resource");
         Files.createDirectories(frameworkDir);

@@ -504,7 +504,7 @@ class GovernanceConfigLoaderTest {
                 "  max_subtasks: 50\n" +
                 "  max_steps: 100\n";
         Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
-        createMinimalPlanruleAndScriptconfig(frameworkDir);
+        createMinimalActruleAndScriptconfig(frameworkDir);
 
         // 准备场景级配置（收紧框架上限）
         Path scenarioDir = tempDir.resolve("scenario-resource");
@@ -513,7 +513,7 @@ class GovernanceConfigLoaderTest {
                 "  max_subtasks: 30\n" +  // 收紧框架上限（30 < 50）
                 "  max_steps: 80\n";       // 收紧框架步数上限（80 < 100）
         Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
-        createMinimalPlanruleAndScriptconfig(scenarioDir);
+        createMinimalActruleAndScriptconfig(scenarioDir);
 
         // 执行优先级加载
         GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
@@ -535,7 +535,7 @@ class GovernanceConfigLoaderTest {
                 "    call_mcp: 50\n" +
                 "    ask_user: 50\n";
         Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
-        createMinimalPlanruleAndScriptconfig(frameworkDir);
+        createMinimalActruleAndScriptconfig(frameworkDir);
 
         // 准备场景级配置
         Path scenarioDir = tempDir.resolve("scenario-tool");
@@ -546,7 +546,7 @@ class GovernanceConfigLoaderTest {
                 "    call_mcp: 20\n" +         // 收紧框架限制（20 < 50）
                 "    execute_cmd: 10\n";       // 新增工具限制（框架无此限制）
         Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
-        createMinimalPlanruleAndScriptconfig(scenarioDir);
+        createMinimalActruleAndScriptconfig(scenarioDir);
 
         // 执行优先级加载
         GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
@@ -572,7 +572,7 @@ class GovernanceConfigLoaderTest {
                 "  tool_limits:\n" +
                 "    call_versatile: 50\n";
         Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
-        createMinimalPlanruleAndScriptconfig(frameworkDir);
+        createMinimalActruleAndScriptconfig(frameworkDir);
 
         // 准备场景级配置（尝试放宽框架上限，应被拒绝）
         Path scenarioDir = tempDir.resolve("scenario-relax");
@@ -583,7 +583,7 @@ class GovernanceConfigLoaderTest {
                 "  tool_limits:\n" +
                 "    call_versatile: 80\n"; // 尝试放宽框架限制（80 > 50，应被拒绝）
         Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
-        createMinimalPlanruleAndScriptconfig(scenarioDir);
+        createMinimalActruleAndScriptconfig(scenarioDir);
 
         // 执行优先级加载
         GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
@@ -603,7 +603,7 @@ class GovernanceConfigLoaderTest {
         String frameworkActrule = "actrule:\n" +
                 "  skill_mode: all\n";  // 只配置其他字段
         Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
-        createMinimalPlanruleAndScriptconfig(frameworkDir);
+        createMinimalActruleAndScriptconfig(frameworkDir);
 
         // 准备场景级配置（新增资源限制）
         Path scenarioDir = tempDir.resolve("scenario-new-limits");
@@ -615,7 +615,7 @@ class GovernanceConfigLoaderTest {
                 "    call_versatile: 30\n" +  // 框架无此配置，场景新增
                 "    call_mcp: 20\n";          // 框架无此配置，场景新增
         Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
-        createMinimalPlanruleAndScriptconfig(scenarioDir);
+        createMinimalActruleAndScriptconfig(scenarioDir);
 
         // 执行优先级加载
         GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);
@@ -638,7 +638,7 @@ class GovernanceConfigLoaderTest {
                 "  skill_mode: all\n" +
                 "  enable_task_loop: true\n";
         Files.writeString(frameworkDir.resolve("actrule.yaml"), frameworkActrule);
-        createMinimalPlanruleAndScriptconfig(frameworkDir);
+        createMinimalActruleAndScriptconfig(frameworkDir);
 
         // 准备场景级配置（完全不配置资源限制）
         Path scenarioDir = tempDir.resolve("scenario-both-null");
@@ -646,7 +646,7 @@ class GovernanceConfigLoaderTest {
         String scenarioActrule = "actrule:\n" +
                 "  skill_mode: auto_list\n";  // 只配置其他字段
         Files.writeString(scenarioDir.resolve("actrule.yaml"), scenarioActrule);
-        createMinimalPlanruleAndScriptconfig(scenarioDir);
+        createMinimalActruleAndScriptconfig(scenarioDir);
 
         // 执行优先级加载
         GovernanceConfig mergedConfig = GovernanceConfigLoader.loadWithPriority(scenarioDir, frameworkDir);

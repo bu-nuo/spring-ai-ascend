@@ -63,10 +63,11 @@ services:
       EDP_AGENT_VERSATILE_A2A_URL: "${EDP_AGENT_VERSATILE_A2A_URL:-http://adapter-versatile:8191/a2a}"
       # 启动校验器要求合法 http URL，切勿留空；默认同机 Mock 用 host.docker.internal
       EDP_AGENT_VERSATILE_URL: "${EDP_AGENT_VERSATILE_URL:-http://host.docker.internal:30001/v1/0/agent-manager/workflows/{workflow_id}/conversations/{conversation_id}}"
-      MCP_MASTER_URL: "${MCP_MASTER_URL:-}"
-      MCP_STANDBY_URL: "${MCP_STANDBY_URL:-}"
-      MCP_ACCESS_TOKEN: "${MCP_ACCESS_TOKEN:-}"
-      MCP_APP_NAME: "${MCP_APP_NAME:-f-mlp}"
+      # MCP：application.yml 读取 EDP_MCP_*；兼容旧 .env 中的 MCP_* 写法
+      EDP_MCP_MASTER_URL: "${EDP_MCP_MASTER_URL:-${MCP_MASTER_URL:-}}"
+      EDP_MCP_STANDBY_URL: "${EDP_MCP_STANDBY_URL:-${MCP_STANDBY_URL:-}}"
+      EDP_MCP_ACCESS_TOKEN: "${EDP_MCP_ACCESS_TOKEN:-${MCP_ACCESS_TOKEN:-}}"
+      EDP_MCP_APP_NAME: "${EDP_MCP_APP_NAME:-${MCP_APP_NAME:-f-mlp}}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

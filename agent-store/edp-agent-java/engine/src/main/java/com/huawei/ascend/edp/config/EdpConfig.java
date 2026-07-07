@@ -29,32 +29,20 @@ public class EdpConfig {
     /** 规划步骤文本列表。 */
     private List<String> planningSteps;
 
-    /** 轻量 Todo 步骤定义。 */
-    private List<TodolistStep> todolistSteps;
-
     /** 模型采样参数配置。 */
     private LlmSampling llmSampling;
 
     /** 场景发现配置。原 AgentRule.md 的 scenario_discovery 节。 */
     private ScenarioDiscoveryConfig scenarioDiscovery;
 
-    /** 当前激活的场景配置。运行时加载，不在 YAML 中直接配置。 */
-    private ScenarioConfig activeScenario;
-
     public ScenarioDiscoveryConfig getScenarioDiscovery() { return scenarioDiscovery; }
     public void setScenarioDiscovery(ScenarioDiscoveryConfig scenarioDiscovery) { this.scenarioDiscovery = scenarioDiscovery; }
-
-    public ScenarioConfig getActiveScenario() { return activeScenario; }
-    public void setActiveScenario(ScenarioConfig activeScenario) { this.activeScenario = activeScenario; }
 
     public Scope getScope() { return scope; }
     public void setScope(Scope scope) { this.scope = scope; }
 
     public List<String> getPlanningSteps() { return planningSteps; }
     public void setPlanningSteps(List<String> planningSteps) { this.planningSteps = planningSteps; }
-
-    public List<TodolistStep> getTodolistSteps() { return todolistSteps; }
-    public void setTodolistSteps(List<TodolistStep> todolistSteps) { this.todolistSteps = todolistSteps; }
 
     public LlmSampling getLlmSampling() { return llmSampling; }
     public void setLlmSampling(LlmSampling llmSampling) { this.llmSampling = llmSampling; }
@@ -66,43 +54,8 @@ public class EdpConfig {
         /** 允许处理的业务范围描述。 */
         private String allowed;
 
-        /** 超出业务范围时的提示话术。 */
-        private String outOfScopeMessage;
-
         public String getAllowed() { return allowed; }
         public void setAllowed(String allowed) { this.allowed = allowed; }
-
-        public String getOutOfScopeMessage() { return outOfScopeMessage; }
-        public void setOutOfScopeMessage(String outOfScopeMessage) { this.outOfScopeMessage = outOfScopeMessage; }
-    }
-
-    /**
-     * 轻量 Todo 步骤定义。
-     */
-    public static class TodolistStep {
-        /** 步骤 ID，用于 lite_todo_write Schema 枚举。 */
-        private int stepId;
-
-        /** 步骤展示内容。 */
-        private String content;
-
-        /** 步骤关联技能名。 */
-        private String skill;
-
-        /** 依赖的前置步骤 ID 列表。 */
-        private List<Integer> dependsOn;
-
-        public int getStepId() { return stepId; }
-        public void setStepId(int stepId) { this.stepId = stepId; }
-
-        public String getContent() { return content; }
-        public void setContent(String content) { this.content = content; }
-
-        public String getSkill() { return skill; }
-        public void setSkill(String skill) { this.skill = skill; }
-
-        public List<Integer> getDependsOn() { return dependsOn; }
-        public void setDependsOn(List<Integer> dependsOn) { this.dependsOn = dependsOn; }
     }
 
     /**

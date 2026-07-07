@@ -40,11 +40,17 @@ public class EdpaSpringBootConfig {
     /** Versatile 服务配置。 */
     private VersatileConfig versatile;
 
+    /** MCP SSE 连接配置。 */
+    private McpSseConfig mcpsse;
+
     public ModelConfig getModel() { return model; }
     public void setModel(ModelConfig model) { this.model = model; }
 
     public VersatileConfig getVersatile() { return versatile; }
     public void setVersatile(VersatileConfig versatile) { this.versatile = versatile; }
+
+    public McpSseConfig getMcpsse() { return mcpsse; }
+    public void setMcpsse(McpSseConfig mcpsse) { this.mcpsse = mcpsse; }
 
     /**
      * 模型后端配置。
@@ -120,5 +126,34 @@ public class EdpaSpringBootConfig {
         public void setHeaders(Map<String, String> headers) {
             this.headers = headers != null ? headers : new LinkedHashMap<>();
         }
+    }
+
+    /**
+     * MCP SSE 连接配置。
+     */
+    public static class McpSseConfig {
+        /** MCP SSE 主 URL（灰度：wap_grayFlag 以 JD 开头时使用）。 */
+        private String masterUrl;
+
+        /** MCP SSE 备 URL（灰度：wap_grayFlag 非 JD 开头时使用）。 */
+        private String standbyUrl;
+
+        /** MCP SSE 鉴权 Token。 */
+        private String accessToken;
+
+        /** MCP SSE 应用名称。 */
+        private String appName;
+
+        public String getMasterUrl() { return masterUrl; }
+        public void setMasterUrl(String masterUrl) { this.masterUrl = masterUrl; }
+
+        public String getStandbyUrl() { return standbyUrl; }
+        public void setStandbyUrl(String standbyUrl) { this.standbyUrl = standbyUrl; }
+
+        public String getAccessToken() { return accessToken; }
+        public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+
+        public String getAppName() { return appName; }
+        public void setAppName(String appName) { this.appName = appName; }
     }
 }

@@ -10,29 +10,17 @@ import java.util.Map;
  * <p>作用：</p>
  * <ul>
  *     <li>回答Agent如何执行任务</li>
- *     <li>控制执行过程中的重试、重规划、步数限制</li>
+ *     <li>控制执行过程中的步数限制、子任务数量上限</li>
  *     <li>约束Agent可调用的工具集合</li>
  * </ul>
  */
 public class ActRuleConfig {
 
-    /** 限制单层最大子任务数量。 */
+    /** 限制单层最大子任务数量（资源限制类字段，继承时取min，场景不能放宽框架上限）。 */
     private Integer maxSubtasks;
 
-    /** 允许失败后重新规划。 */
-    private Boolean replanEnabled;
-
-    /** 限制最大重规划次数。 */
-    private Integer maxReplanCount;
-
-    /** 限制最大执行步数。 */
+    /** 限制最大执行步数（资源限制类字段，继承时取min，场景不能放宽框架步数上限）。 */
     private Integer maxSteps;
-
-    /** 是否允许失败重试。 */
-    private Boolean retryEnabled;
-
-    /** 限制最大重试次数。 */
-    private Integer maxRetryCount;
 
     /** 允许调用的工具列表（继承式覆盖）。 */
     private List<String> allowedTools;
@@ -45,26 +33,14 @@ public class ActRuleConfig {
      */
     private String skillMode;
 
-    /** 单个工具调用次数上限，key 为工具名，value 为上限值。 */
+    /** 单个工具调用次数上限（逐key合并，key为工具名，value为上限值，场景只能设更小值不能放宽框架限制）。 */
     private Map<String, Integer> toolLimits;
 
     public Integer getMaxSubtasks() { return maxSubtasks; }
     public void setMaxSubtasks(Integer maxSubtasks) { this.maxSubtasks = maxSubtasks; }
 
-    public Boolean getReplanEnabled() { return replanEnabled; }
-    public void setReplanEnabled(Boolean replanEnabled) { this.replanEnabled = replanEnabled; }
-
-    public Integer getMaxReplanCount() { return maxReplanCount; }
-    public void setMaxReplanCount(Integer maxReplanCount) { this.maxReplanCount = maxReplanCount; }
-
     public Integer getMaxSteps() { return maxSteps; }
     public void setMaxSteps(Integer maxSteps) { this.maxSteps = maxSteps; }
-
-    public Boolean getRetryEnabled() { return retryEnabled; }
-    public void setRetryEnabled(Boolean retryEnabled) { this.retryEnabled = retryEnabled; }
-
-    public Integer getMaxRetryCount() { return maxRetryCount; }
-    public void setMaxRetryCount(Integer maxRetryCount) { this.maxRetryCount = maxRetryCount; }
 
     public List<String> getAllowedTools() { return allowedTools; }
     public void setAllowedTools(List<String> allowedTools) { this.allowedTools = allowedTools; }
@@ -77,4 +53,62 @@ public class ActRuleConfig {
 
     public Map<String, Integer> getToolLimits() { return toolLimits; }
     public void setToolLimits(Map<String, Integer> toolLimits) { this.toolLimits = toolLimits; }
+
+    // ========== todolist 字段（替代式覆盖，框架默认无值） ==========
+
+    /** 任务定义列表（场景级替代式覆盖，框架默认无值）。 */
+    private List<TodolistEntry> todolistEntries;
+
+    /** 动态路径规则列表。 */
+    private List<TodolistPath> todolistDynamicPaths;
+
+    public List<TodolistEntry> getTodolistEntries() { return todolistEntries; }
+    public void setTodolistEntries(List<TodolistEntry> entries) { this.todolistEntries = entries; }
+
+    public List<TodolistPath> getTodolistDynamicPaths() { return todolistDynamicPaths; }
+    public void setTodolistDynamicPaths(List<TodolistPath> paths) { this.todolistDynamicPaths = paths; }
+
+    /**
+     * 任务定义（catalog_id 为内部主键）。
+     */
+    public static class TodolistEntry {
+        private String catalogId;
+        private String content;
+        private String description;
+        private List<String> dependsOn;
+        private String skill;
+
+        public String getCatalogId() { return catalogId; }
+        public void setCatalogId(String catalogId) { this.catalogId = catalogId; }
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        public List<String> getDependsOn() { return dependsOn; }
+        public void setDependsOn(List<String> dependsOn) { this.dependsOn = dependsOn; }
+        public String getSkill() { return skill; }
+        public void setSkill(String skill) { this.skill = skill; }
+    }
+
+    /**
+     * 动态路径规则（LLM 根据业务结果自主判断是否切换）。
+     */
+    public static class TodolistPath {
+        private String pathId;
+        private String description;
+        private String trigger;
+        private List<String> skipSteps;
+        private String redirect;
+
+        public String getPathId() { return pathId; }
+        public void setPathId(String pathId) { this.pathId = pathId; }
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        public String getTrigger() { return trigger; }
+        public void setTrigger(String trigger) { this.trigger = trigger; }
+        public List<String> getSkipSteps() { return skipSteps; }
+        public void setSkipSteps(List<String> skipSteps) { this.skipSteps = skipSteps; }
+        public String getRedirect() { return redirect; }
+        public void setRedirect(String redirect) { this.redirect = redirect; }
+    }
 }

@@ -2,18 +2,12 @@
 #
 # 作用：
 # - 回答Agent如何执行任务
-# - 控制执行过程中的重试、重规划、步数限制
+# - 控制执行过程中的步数限制、子任务数量上限
 # - 约束Agent可调用的工具集合
 
 actrule:
   # 限制单层最大子任务数量
   max_subtasks: 50
-
-  # 允许失败后重新规划
-  replan_enabled: true
-
-  # 限制最大重规划次数
-  max_replan_count: 3
 
   # 限制最大执行步数（从 framework.options.maxIterations 迁移）
   max_steps: 100
@@ -27,19 +21,6 @@ actrule:
   # - none: 关闭 Skill 系统
   skill_mode: all
 
-  # 是否允许失败重试
-  retry_enabled: true
-
-  # 限制最大重试次数
-  max_retry_count: 3
-
-  # 单个工具调用次数上限（key: 工具名, value: 上限值）
-  tool_limits:
-    call_versatile: 100
-    call_mcp: 100
-    ask_user: 100
-    execute_cmd: 100
-
   # 允许调用的工具列表
   allowed_tools:
       - bash
@@ -52,3 +33,12 @@ actrule:
       - todo_list
       - todo_get
       - cancel_task
+
+  # 单个工具调用次数上限（key: 工具名, value: 上限值）
+  tool_limits:
+    call_versatile: 50
+    call_mcp: 50
+    ask_user: 50
+    execute_cmd: 50
+
+  

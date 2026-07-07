@@ -14,12 +14,14 @@ package com.huawei.ascend.edp.config;
  *   <li>think_start ↔ think_end（每轮 LLM 推理，1:1）</li>
  *   <li>final_answer_start ↔ final_answer_end（最终回答，1:1）</li>
  *   <li>tool_start ↔ tool_end（业务工具，1:1）</li>
+ *   <li>tool_status（工具执行中间状态，可多次，无配对）</li>
  *   <li>todolist_start ↔ todolist_end（任务列表快照，1:N item）</li>
  *   <li>todo_start ↔ todo_end（单个任务执行，按状态转移）</li>
+ *   <li>todo_status（任务执行中间状态，可多次，无配对）</li>
  *   <li>interrupt_start ↔ interrupt_end（用户中断，跨轮配对）</li>
  *   <li>error_event（异常，无配对）</li>
  * </ul>
- * <p>共 20 种事件类型。</p>
+ * <p>共 22 种事件类型（含 todo_status / tool_status 中间状态事件，暂不发射但预留枚举位）。</p>
  */
 public enum EdpaEventType {
 
@@ -45,6 +47,7 @@ public enum EdpaEventType {
 
     // 业务工具
     TOOL_START("tool_start"),
+    TOOL_STATUS("tool_status"),
     TOOL_END("tool_end"),
 
     // 任务列表快照（逐条）
@@ -54,6 +57,7 @@ public enum EdpaEventType {
 
     // 单个任务执行
     TODO_START("todo_start"),
+    TODO_STATUS("todo_status"),
     TODO_END("todo_end"),
 
     // 用户中断（跨轮配对）

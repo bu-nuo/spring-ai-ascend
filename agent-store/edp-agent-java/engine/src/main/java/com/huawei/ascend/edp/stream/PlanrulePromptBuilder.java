@@ -44,13 +44,12 @@ public class PlanrulePromptBuilder {
             return getDefaultSystemPrompt();
         }
 
-        LOGGER.info("PlanrulePromptBuilder: role=[{}], description=[{}], supplementaryPrompt=[{}], scope.allowed=[{}], scope.denied=[{}], scope.outOfScope=[{}]",
+        LOGGER.info("PlanrulePromptBuilder: role=[{}], description=[{}], supplementaryPrompt=[{}], scope.allowed=[{}], scope.denied=[{}]",
                 planrule.getRole(),
                 planrule.getDescription(),
                 planrule.getSupplementaryPrompt(),
                 planrule.getScope() != null ? planrule.getScope().getAllowed() : "null",
-                planrule.getScope() != null ? planrule.getScope().getDenied() : "null",
-                planrule.getScope() != null ? planrule.getScope().getOutOfScopeMessage() : "null");
+                planrule.getScope() != null ? planrule.getScope().getDenied() : "null");
 
         StringBuilder sb = new StringBuilder();
 
@@ -64,7 +63,18 @@ public class PlanrulePromptBuilder {
             sb.append(planrule.getDescription()).append("\n\n");
         }
 
-        // 3. 业务范围（scope字段）
+        // 3. 场景上下文（scenarioName + scenarioDescription，仅场景模式有值）
+        if (isNotEmpty(planrule.getScenarioName())) {
+            sb.append("**当前场景**：").append(planrule.getScenarioName()).append("\n");
+        }
+        if (isNotEmpty(planrule.getScenarioDescription())) {
+            sb.append(planrule.getScenarioDescription()).append("\n\n");
+        } else if (isNotEmpty(planrule.getScenarioName())) {
+            // scenarioDescription 为空时也保证空行分隔
+            sb.append("\n");
+        }
+
+        // 4. 业务范围（scope字段）
         PlanRuleConfig.Scope scope = planrule.getScope();
         if (scope != null) {
             boolean hasScopeContent = false;
@@ -82,12 +92,6 @@ public class PlanrulePromptBuilder {
                 hasScopeContent = true;
             }
 
-            // outOfScopeMessage字段：非空时才拼接
-            if (isNotEmpty(scope.getOutOfScopeMessage())) {
-                scopeSb.append("超出范围提示：").append(scope.getOutOfScopeMessage()).append("\n");
-                hasScopeContent = true;
-            }
-
             // 只有当scope中至少有一个字段非空时，才添加scope内容
             if (hasScopeContent) {
                 sb.append("\n");
@@ -95,9 +99,28 @@ public class PlanrulePromptBuilder {
             }
         }
 
-        // 4. 补充提示词（supplementaryPrompt字段）- 直接拼接，内容灵活（可以是行为约束、使用说明、注意事项等）
-        if (isNotEmpty(planrule.getSupplementaryPrompt())) {
-            sb.append(planrule.getSupplementaryPrompt()).append("\n");
+        // 5. Skill路由（skillRouting字段）- 场景级，框架默认无值
+        java.util.List<PlanRuleConfig.SkillRoute> skillRouting = planrule.getSkillRouting();
+        if (skillRouting != null && !skillRouting.isEmpty()) {
+            sb.append("\n**Skill 路由**：\n");
+            for (PlanRuleConfig.SkillRoute r : skillRouting) {
+                sb.append("- ").append(r.getTrigger())
+                  .append(" → ").append(r.getSkill())
+                  .append("（priority=").append(r.getPriority()).append("）\n");
+            }
+        }
+
+        // 6. 补充提示词（supplementaryPrompt字段）- 拼接 baseProtocol + additionalPrompt
+        if (planrule.getSupplementaryPrompt() != null) {
+            PlanRuleConfig.SupplementaryPrompt suppPrompt = planrule.getSupplementaryPrompt();
+            // baseProtocol（框架内置）
+            if (isNotEmpty(suppPrompt.getBaseProtocol())) {
+                sb.append(suppPrompt.getBaseProtocol()).append("\n");
+            }
+            // additionalPrompt（场景追加）
+            if (isNotEmpty(suppPrompt.getAdditionalPrompt())) {
+                sb.append(suppPrompt.getAdditionalPrompt()).append("\n");
+            }
         }
 
         String result = sb.toString().trim();

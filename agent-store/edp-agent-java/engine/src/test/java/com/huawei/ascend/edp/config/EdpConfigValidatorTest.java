@@ -3,8 +3,6 @@ package com.huawei.ascend.edp.config;
 import org.junit.jupiter.api.Test;
 import java.nio.file.Path;
 import java.nio.file.Files;
-import java.io.IOException;
-import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -111,39 +109,6 @@ class EdpConfigValidatorTest {
         }
     }
 
-    // ── todolist_steps 校验 ──
-
-    @Test
-    void testValidateTodolistSteps_Placeholder() {
-        EdpConfig config = new EdpConfig();
-        EdpConfig.TodolistStep step = new EdpConfig.TodolistStep();
-        step.setStepId(1);
-        step.setContent("占位步骤");
-        step.setSkill("_placeholder_");
-        config.setTodolistSteps(List.of(step));
-        assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateTodolistSteps(config),
-                "_placeholder_ skill 应 fail-fast");
-    }
-
-    @Test
-    void testValidateTodolistSteps_ValidSteps() {
-        EdpConfig config = new EdpConfig();
-        EdpConfig.TodolistStep step = new EdpConfig.TodolistStep();
-        step.setStepId(1);
-        step.setContent("推荐理财产品");
-        step.setSkill("product_recommend_skill");
-        config.setTodolistSteps(List.of(step));
-        assertDoesNotThrow(() -> EdpConfigValidator.validateTodolistSteps(config), "有效步骤应通过校验");
-    }
-
-    @Test
-    void testValidateTodolistSteps_NullSteps() {
-        EdpConfig config = new EdpConfig();
-        config.setTodolistSteps(null);
-        assertDoesNotThrow(() -> EdpConfigValidator.validateTodolistSteps(config), "null steps 应通过");
-    }
-
     // ── 场景配置校验 ──
 
     @Test
@@ -168,37 +133,6 @@ class EdpConfigValidatorTest {
         } else {
             System.out.println("SKIP: wealth-demo scenario directory not found at " + scenarioHome);
         }
-    }
-
-    // ── skill_routing 校验 ──
-
-    @Test
-    void testValidateSkillRouting_NullScenario() {
-        Path skillsDir = Path.of("some/path");
-        assertDoesNotThrow(() -> EdpConfigValidator.validateSkillRouting(null, skillsDir), "null scenario 应跳过");
-    }
-
-    @Test
-    void testValidateSkillRouting_NullRouting() {
-        ScenarioConfig scenario = new ScenarioConfig();
-        scenario.setSkillRouting(null);
-        Path skillsDir = Path.of("some/path");
-        assertDoesNotThrow(() -> EdpConfigValidator.validateSkillRouting(scenario, skillsDir), "null routing 应跳过");
-    }
-
-    @Test
-    void testValidateSkillRouting_NonExistentSkill() {
-        ScenarioConfig scenario = new ScenarioConfig();
-        ScenarioSkillRouting routing = new ScenarioSkillRouting();
-        routing.setTrigger("test trigger");
-        routing.setSkill("nonexistent_skill");
-        routing.setPriority(1);
-        scenario.setSkillRouting(List.of(routing));
-
-        Path skillsDir = Path.of("/nonexistent/skills");
-        assertThrows(IllegalStateException.class,
-                () -> EdpConfigValidator.validateSkillRouting(scenario, skillsDir),
-                "路由引用不存在的 Skill 应 fail-fast");
     }
 
     // ── Skill 目录校验 ──

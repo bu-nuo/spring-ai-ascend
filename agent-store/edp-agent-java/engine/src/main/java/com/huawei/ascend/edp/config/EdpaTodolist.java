@@ -1,15 +1,8 @@
 package com.huawei.ascend.edp.config;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,13 +38,6 @@ public class EdpaTodolist {
     private static final Logger LOGGER = LoggerFactory.getLogger(EdpaTodolist.class);
 
     /**
-     * YAML 解析器，与 {@link ScenarioConfigLoader} 保持一致的 Jackson 配置。
-     */
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
-
-    /**
      * 任务定义列表（保持配置顺序）。
      */
     private final List<TodoEntry> entries;
@@ -67,54 +53,51 @@ public class EdpaTodolist {
     private final Map<String, TodoEntry> index;
 
     /**
-     * 是否来自旧版 todolist_steps（向后兼容模式）。
-     */
-    private final boolean legacyMode;
-
-    /**
-     * 从 scenario-config.yaml 加载 todo 数据。
+     * 从 ActRuleConfig POJO 构造（governance 数据源）。
      *
-     * <p>加载策略：</p>
-     * <ol>
-     *     <li>优先读取 {@code todolist} 一级配置段（entries + dynamic_paths）。</li>
-     *     <li>未配置 {@code todolist} 时，回退到旧版 {@code todolist_steps}，生成无 description 的 entries，
-     *         且 dynamic_paths 为空（旧版不支持动态路径）。</li>
-     * </ol>
-     *
-     * @param yamlPath scenario-config.yaml 路径
+     * @param rawEntries  ActRuleConfig.TodolistEntry 列表
+     * @param rawPaths    ActRuleConfig.TodolistPath 列表
      * @throws IllegalArgumentException 校验失败（catalog_id 重复、引用不存在、依赖图有环）
      */
-    @SuppressWarnings("unchecked")
-    public EdpaTodolist(Path yamlPath) {
-        Objects.requireNonNull(yamlPath, "scenario-config.yaml path must not be null");
-        Map<String, Object> root = loadYaml(yamlPath);
-
-        Object todolistNode = root.get("todolist");
-        if (todolistNode instanceof Map<?, ?> todolistMap) {
-            this.entries = parseEntries(asMapList(todolistMap.get("entries")));
-            this.dynamicPaths = parseDynamicPaths(asMapList(todolistMap.get("dynamic_paths")));
-            this.legacyMode = false;
-            LOGGER.info("EdpaTodolist loaded from todolist section: entries={}, dynamicPaths={}",
-                    entries.size(), dynamicPaths.size());
-        } else {
-            // 向后兼容：从旧版 todolist_steps 生成 entries。
-            this.entries = parseLegacySteps(asMapList(root.get("todolist_steps")));
-            this.dynamicPaths = Collections.emptyList();
-            this.legacyMode = true;
-            LOGGER.info("EdpaTodolist loaded from legacy todolist_steps: entries={}, dynamicPaths=0 (legacy mode)",
-                    entries.size());
+    public EdpaTodolist(List<ActRuleConfig.TodolistEntry> rawEntries,
+                        List<ActRuleConfig.TodolistPath> rawPaths) {
+        Objects.requireNonNull(rawEntries, "todolist entries must not be null");
+        this.entries = new ArrayList<>(rawEntries.size());
+        this.dynamicPaths = new ArrayList<>();
+        for (ActRuleConfig.TodolistEntry e : rawEntries) {
+            this.entries.add(new TodoEntry(
+                    e.getCatalogId(),
+                    e.getContent(),
+                    e.getDescription(),
+                    e.getDependsOn(),
+                    e.getSkill()));
         }
+        if (rawPaths != null) {
+            for (ActRuleConfig.TodolistPath p : rawPaths) {
+                this.dynamicPaths.add(new DynamicPath(
+                        p.getPathId(),
+                        p.getDescription(),
+                        p.getTrigger(),
+                        p.getSkipSteps(),
+                        p.getRedirect()));
+            }
+        }
+        this.index = buildIndex(this.entries);
+        validateReferences();
+        validateAcyclic();
+        LOGGER.info("EdpaTodolist loaded from governance actrule: entries={}, dynamicPaths={}",
+                entries.size(), dynamicPaths.size());
+    }
 
-        this.index = new LinkedHashMap<>();
+    private static Map<String, TodoEntry> buildIndex(List<TodoEntry> entries) {
+        Map<String, TodoEntry> index = new LinkedHashMap<>();
         for (TodoEntry entry : entries) {
             if (index.put(entry.getCatalogId(), entry) != null) {
                 throw new IllegalArgumentException(
                         "Duplicate catalog_id in todolist.entries: " + entry.getCatalogId());
             }
         }
-
-        validateReferences();
-        validateAcyclic();
+        return index;
     }
 
     public List<TodoEntry> getEntries() {
@@ -130,108 +113,12 @@ public class EdpaTodolist {
     }
 
     /**
-     * 是否处于旧版 todolist_steps 兼容模式。
-     *
-     * @return 旧版模式返回 true，使用新 todolist 段返回 false
-     */
-    public boolean isLegacyMode() {
-        return legacyMode;
-    }
-
-    /**
      * 是否存在动态路径规则。
      *
      * @return 存在 dynamic_paths 返回 true
      */
     public boolean hasDynamicPaths() {
         return !dynamicPaths.isEmpty();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> loadYaml(Path yamlPath) {
-        try {
-            String content = Files.readString(yamlPath);
-            return YAML_MAPPER.readValue(content, Map.class);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to load scenario-config.yaml: " + yamlPath, e);
-        }
-    }
-
-    private static List<Map<String, Object>> asMapList(Object node) {
-        if (node instanceof List<?> list) {
-            List<Map<String, Object>> result = new ArrayList<>(list.size());
-            for (Object item : list) {
-                if (item instanceof Map<?, ?> map) {
-                    Map<String, Object> typed = new LinkedHashMap<>();
-                    map.forEach((k, v) -> typed.put(String.valueOf(k), v));
-                    result.add(typed);
-                }
-            }
-            return result;
-        }
-        return Collections.emptyList();
-    }
-
-    private static List<TodoEntry> parseEntries(List<Map<String, Object>> rawEntries) {
-        List<TodoEntry> result = new ArrayList<>(rawEntries.size());
-        for (Map<String, Object> raw : rawEntries) {
-            String catalogId = str(raw.get("catalog_id"));
-            if (catalogId == null || catalogId.isBlank()) {
-                throw new IllegalArgumentException("todolist.entries item missing catalog_id: " + raw);
-            }
-            result.add(new TodoEntry(
-                    catalogId,
-                    str(raw.get("content")),
-                    str(raw.get("description")),
-                    strList(raw.get("depends_on")),
-                    str(raw.get("skill"))));
-        }
-        return result;
-    }
-
-    private static List<TodoEntry> parseLegacySteps(List<Map<String, Object>> rawSteps) {
-        List<TodoEntry> result = new ArrayList<>(rawSteps.size());
-        for (Map<String, Object> raw : rawSteps) {
-            Object stepId = raw.get("step_id");
-            String catalogId = stepId != null ? "step_" + stepId : "step_" + (result.size() + 1);
-            result.add(new TodoEntry(
-                    catalogId,
-                    str(raw.get("content")),
-                    null,
-                    Collections.emptyList(),
-                    str(raw.get("skill"))));
-        }
-        return result;
-    }
-
-    private static List<DynamicPath> parseDynamicPaths(List<Map<String, Object>> rawPaths) {
-        List<DynamicPath> result = new ArrayList<>(rawPaths.size());
-        for (Map<String, Object> raw : rawPaths) {
-            result.add(new DynamicPath(
-                    str(raw.get("path_id")),
-                    str(raw.get("description")),
-                    str(raw.get("trigger")),
-                    strList(raw.get("skip_steps")),
-                    str(raw.get("redirect"))));
-        }
-        return result;
-    }
-
-    private static String str(Object value) {
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private static List<String> strList(Object value) {
-        if (value instanceof List<?> list) {
-            List<String> result = new ArrayList<>(list.size());
-            for (Object item : list) {
-                if (item != null) {
-                    result.add(String.valueOf(item));
-                }
-            }
-            return result;
-        }
-        return Collections.emptyList();
     }
 
     /**

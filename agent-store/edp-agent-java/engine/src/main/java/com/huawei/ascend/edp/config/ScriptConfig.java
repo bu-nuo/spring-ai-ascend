@@ -21,8 +21,8 @@ public class ScriptConfig {
     /** 思维链话术配置。 */
     private ThinkChunkScripts thinkChunkScripts;
 
-    /** 执行总结格式配置。 */
-    private Summary summary;
+    /** ask_user 中断确认话术配置。 */
+    private AskUserConfirm askUserConfirm;
 
     public GeneralScripts getGeneralScripts() { return generalScripts; }
     public void setGeneralScripts(GeneralScripts generalScripts) { this.generalScripts = generalScripts; }
@@ -30,8 +30,8 @@ public class ScriptConfig {
     public ThinkChunkScripts getThinkChunkScripts() { return thinkChunkScripts; }
     public void setThinkChunkScripts(ThinkChunkScripts thinkChunkScripts) { this.thinkChunkScripts = thinkChunkScripts; }
 
-    public Summary getSummary() { return summary; }
-    public void setSummary(Summary summary) { this.summary = summary; }
+    public AskUserConfirm getAskUserConfirm() { return askUserConfirm; }
+    public void setAskUserConfirm(AskUserConfirm askUserConfirm) { this.askUserConfirm = askUserConfirm; }
 
     /**
      * 通用话术配置，用于业务流程状态（工具调用、中断、取消等）。
@@ -108,13 +108,29 @@ public class ScriptConfig {
      * 固定话术帧配置。
      */
     public static class ThinkChunkFixedScripts {
+        /** 是否启用固定话术帧（布尔开关，继承式覆盖）。 */
         private Boolean enabled;
+        
+        /** 每帧字符数（资源限制类字段，继承时取min，场景不能放宽框架限制）。 */
         private Integer charsPerFrame;
+        
+        /** 帧间token数（资源限制类字段，继承时取min，场景不能放宽框架限制）。 */
         private Integer tokensBetweenFrames;
+        
+        /** 最小间隔毫秒数（资源限制类字段，继承时取min，场景不能放宽框架限制）。 */
         private Integer minIntervalMs;
+        
+        /** 默认话术列表（替代式覆盖，场景有配置时以场景替代框架默认）。 */
         private List<String> defaultScripts;
+        
+        /** 执行阶段话术列表（替代式覆盖，场景有配置时以场景替代框架默认）。 */
         private List<String> executionScripts;
+        
+        /** 续轮话术列表（替代式覆盖，场景有配置时以场景替代框架默认）。 */
         private List<String> resumeScripts;
+        
+        /** 按用户 query 关键词匹配的话术组列表（planning 阶段，追加策略：框架通用模式 + 场景业务关键词）。 */
+        private List<QueryPattern> queryPatterns;
 
         public Boolean getEnabled() { return enabled; }
         public void setEnabled(Boolean enabled) { this.enabled = enabled; }
@@ -136,23 +152,40 @@ public class ScriptConfig {
 
         public List<String> getResumeScripts() { return resumeScripts; }
         public void setResumeScripts(List<String> resumeScripts) { this.resumeScripts = resumeScripts; }
+
+        public List<QueryPattern> getQueryPatterns() { return queryPatterns; }
+        public void setQueryPatterns(List<QueryPattern> queryPatterns) { this.queryPatterns = queryPatterns; }
+
+        /**
+         * 按关键词匹配的话术组。planning 阶段遍历列表，首个命中的关键词组即生效。
+         */
+        public static class QueryPattern {
+            private List<String> keywords;
+            private List<String> scripts;
+
+            public List<String> getKeywords() { return keywords; }
+            public void setKeywords(List<String> keywords) { this.keywords = keywords; }
+            public List<String> getScripts() { return scripts; }
+            public void setScripts(List<String> scripts) { this.scripts = scripts; }
+        }
     }
 
     /**
-     * 执行总结格式配置。
+     * ask_user 中断确认话术配置。
+     *
+     * <p>消费方：AskUserTemplateRail（spike 阶段，当前未读取 YAML，预留建模）。</p>
      */
-    public static class Summary {
-        private String format;
-        private Integer maxLength;
-        private List<String> requiredFields;
+    public static class AskUserConfirm {
+        /** 购买确认话术模板，支持 {product_name}、{amount} 等占位符。 */
+        private String purchaseConfirm;
 
-        public String getFormat() { return format; }
-        public void setFormat(String format) { this.format = format; }
+        /** 取消确认话术模板。 */
+        private String cancelConfirm;
 
-        public Integer getMaxLength() { return maxLength; }
-        public void setMaxLength(Integer maxLength) { this.maxLength = maxLength; }
+        public String getPurchaseConfirm() { return purchaseConfirm; }
+        public void setPurchaseConfirm(String purchaseConfirm) { this.purchaseConfirm = purchaseConfirm; }
 
-        public List<String> getRequiredFields() { return requiredFields; }
-        public void setRequiredFields(List<String> requiredFields) { this.requiredFields = requiredFields; }
+        public String getCancelConfirm() { return cancelConfirm; }
+        public void setCancelConfirm(String cancelConfirm) { this.cancelConfirm = cancelConfirm; }
     }
 }

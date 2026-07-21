@@ -19,8 +19,8 @@ dependency:
   - ../../L0-Top-Level-Design/views.md
   - ../../../docs/contracts/ingress-envelope.v1.yaml
   - ../../../../agent-client/docs/proposals/agent-client-v1-design.md
-  - ../../L2-Low-Level-Design/agent-client/Feat-Func-001-standardized-agent-invocation.md
-  - ../../L2-Low-Level-Design/agent-client/Feat-Func-002-local-tool-registration-and-remote-driven-invocation.md
+  - ../../L2-Low-Level-Design/agent-client/Feat-Func-006-standard-agent-client-invocation.md
+  - ../../L2-Low-Level-Design/agent-client/Feat-Func-007-local-tool-registration-and-execution.md
 ---
 
 # agent-client L1 架构开发视图
@@ -194,4 +194,4 @@ SPI 是"平台机制 vs 业务策略"的分界（见设计提案附录 A.5）：
 - 运行时线程/并发/多轮流程：`process.md`。
 - 部署形态与网络/持久化边界：`physical.md`。
 - 拟议 Java API/SPI 形状与分阶段实施：`agent-client/docs/proposals/agent-client-v1-design.md`。
-- 线协议（对齐 runtime `Feat-Func-009`）：L2 `Feat-Func-001` §3.5 / `Feat-Func-002` §3.5。
+- 线协议（对齐 runtime `Feat-Func-009`）：L2 `Feat-Func-006` §3.5 / `Feat-Func-007` §3.5。

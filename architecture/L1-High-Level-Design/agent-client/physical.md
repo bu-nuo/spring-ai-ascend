@@ -18,8 +18,8 @@ dependency:
   - spi-appendix.md
   - ../../L0-Top-Level-Design/views.md
   - ../../../docs/contracts/ingress-envelope.v1.yaml
-  - ../../L2-Low-Level-Design/agent-client/Feat-Func-001-standardized-agent-invocation.md
-  - ../../L2-Low-Level-Design/agent-client/Feat-Func-002-local-tool-registration-and-remote-driven-invocation.md
+  - ../../L2-Low-Level-Design/agent-client/Feat-Func-006-standard-agent-client-invocation.md
+  - ../../L2-Low-Level-Design/agent-client/Feat-Func-007-local-tool-registration-and-execution.md
 ---
 
 # agent-client L1 架构物理视图
@@ -143,4 +143,4 @@ SSE 长连接必须应对企业代理的 idle timeout：以心跳监督 + `strea
 - 运行时线程/多轮/恢复流程：`process.md`。
 - 代码分层、依赖红线、构建基线：`development.md`。
 - 技术场景：`scenarios.md`。
-- 网络协议与降级细节：L2 `Feat-Func-001` §3.5/§5.2；对 gateway 的要求见 `Feat-Func-001` §8 与 `Feat-Func-002` §8。
+- 网络协议与降级细节：L2 `Feat-Func-006` §3.5/§5.2；对 gateway 的要求见 `Feat-Func-006` §8 与 `Feat-Func-007` §8。

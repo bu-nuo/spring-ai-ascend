@@ -18,8 +18,8 @@ dependency:
   - spi-appendix.md
   - ../../L0-Top-Level-Design/views.md
   - ../../../docs/contracts/ingress-envelope.v1.yaml
-  - ../../L2-Low-Level-Design/agent-client/Feat-Func-001-standardized-agent-invocation.md
-  - ../../L2-Low-Level-Design/agent-client/Feat-Func-002-local-tool-registration-and-remote-driven-invocation.md
+  - ../../L2-Low-Level-Design/agent-client/Feat-Func-006-standard-agent-client-invocation.md
+  - ../../L2-Low-Level-Design/agent-client/Feat-Func-007-local-tool-registration-and-execution.md
 ---
 
 # agent-client L1 架构进程视图
@@ -33,7 +33,7 @@ dependency:
 
 本视图与 `logical.md`（状态归属）和 `scenarios.md`（技术场景）配合：逻辑视图定义"是什么"，
 场景视图定义"要走通哪些路径"，进程视图定义"运行时如何编排与保证不变量"。具体 wire
-时序见 L2 `Feat-Func-001` §3.5 与 `Feat-Func-002` §3.5/§5（对齐 runtime `Feat-Func-009`）。
+时序见 L2 `Feat-Func-006` §3.5 与 `Feat-Func-007` §3.5/§5（对齐 runtime `Feat-Func-009`）。
 
 ## 2. 并发与线程模型
 

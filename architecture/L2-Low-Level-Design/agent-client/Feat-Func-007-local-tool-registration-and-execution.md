@@ -13,6 +13,7 @@ dependency:
   - ../../L1-High-Level-Design/agent-client/development.md
   - ./Feat-Func-006-standard-agent-client-invocation.md
   - ../agent-runtime/Feat-Func-009-调用端侧工具响应-新增支持带有端侧工具的请求.md
+  - ../agent-bus/feat-011-l2_V3.0.md
   - ../../../agent-client/docs/proposals/agent-client-v1-design.md
   - ../../../agent-client/examples/cloud-client/README.md
 ---
@@ -24,7 +25,7 @@ dependency:
 > 参照实现：`agent-client/examples/cloud-client/`（可运行原型，JDK 17；原型符号名为早期形态，正文已按 FEAT-007 术语对齐，原型代码待机械跟随，见 §10）
 > 最后更新：2026-07-21
 > **⚠️ 状态：proposed / non-authoritative。** 本文是待评审的实现级设计，不是已接受实现事实。
-> **🔗 wire 基线：** 端侧工具多轮语义**对齐 runtime 已在建的 `agent-runtime/Feat-Func-009`**：工具视图走 `params.metadata.clientTools`（`name`/`description`/`inputSchema`）；调用意图走 Task `status.message.metadata._interrupt`（`_interrupt_kind=client_tool`）；结果走**普通 TextPart observation 文本**回传，V1 单 pending、不回传 `toolCallId`。SDK 内部保留结构化 `ToolExecutionRecord`/`Outcome`，仅在回传前渲染为 observation 文本，不上 wire。**唯一保留差异是拓扑：client 连 gateway 受治理透传到 runtime**（见 §8）。
+> **🔗 wire 基线：** 端侧工具多轮语义**对齐 runtime 已在建的 `agent-runtime/Feat-Func-009`**，并与 gateway 边界文档 `agent-bus/feat-011-l2_V3.0.md`（FEAT-011）§5.9 冻结的续跑契约一致：工具视图走 `params.metadata.clientTools`（`name`/`description`/`inputSchema`）；调用意图走 Task `status.message.metadata._interrupt`（`_interrupt_kind=client_tool`）；结果走**普通 TextPart observation 文本**回传，V1 单 pending、不回传 `toolCallId`。**本迭代承载形态冻结：创建走 `SendStreamingMessage`(SSE)，工具结果续跑走 `SendMessage` 同步单次 JSON 响应（非 SSE）；每次续跑 HTTP 均带 `Authorization: Bearer`（见 Feat-Func-006 §3.5.0）。** SDK 内部保留结构化 `ToolExecutionRecord`/`Outcome`，仅在回传前渲染为 observation 文本，不上 wire。**唯一保留差异是拓扑：client 连 gateway 受治理透传到 runtime**（见 §8）。
 
 ---
 
@@ -166,6 +167,24 @@ public record ToolExecutionRecord(
 
 > 未声明策略 → ToolView 为空 → 不上报任何 `clientTools` → 服务端不可见任何本地工具。
 
+#### 3.1.1 工具如何暴露给远端（端到端流程，回应架构师）
+
+本地工具**不会**被单独推送或由服务端主动发现；它**搭载 Feat-Func-006 的标准调用请求**一次性上报，链路如下：
+
+```
+① 注册（开发期）  registry.register(LocalTool)                      —— 仅进 client 本地目录，服务端不可见
+② 声明（运行时）  业务把 ToolExposurePolicy 作为 Feat-Func-006
+                 InvocationRequest.exposure 传入 invoke(...)        —— 声明本次可暴露范围（默认空）
+③ 计算（client）  ToolView = 目录 ∩ 暴露策略 ∩ 租户/用户/上下文/可用性
+④ 上报（wire）    ToolView 映射为创建请求 params.metadata.clientTools，
+                 随 SendStreamingMessage 一并发给 gateway → runtime   —— 见 §3.5 ① 与 Feat-Func-006 §3.2
+⑤ 请求（服务端）  runtime 据 clientTools 注入模型工具视图；命中则回 INPUT_REQUIRED + _interrupt
+```
+
+- **入口就是标准调用**：暴露不是独立接口，而是 `Feat-Func-006` 创建 invocation 时通过 `InvocationRequest.exposure` 参数携带（见 Feat-Func-006 §2.4 数据类型、§3.2 创建流程）。
+- **每次都带**：即使已有 conversation 级策略，也在每次 invocation 重新计算并上报 ToolView，服务端不缓存客户端工具视图。
+- **默认不暴露**：未传 `exposure` → ToolView 空 → 不产生 `clientTools` → 服务端不可见任何本地工具。
+
 ### 3.2 治理骨架（ToolDispatcher 管道）
 
 ```
@@ -248,7 +267,9 @@ ToolView 中每个可见工具映射为 `clientTools` 项（`toolId`→`name`；
 
 SDK 归一化：`toolName`→`toolId`（经注册表+ToolView 解析）、`toolCallId`→本地去重键、`context.arguments`→`ToolInvocation.arguments`。只处理 `_interrupt_kind=client_tool`。
 
-**③ 结果回传（`SendMessage`，原 taskId + 普通 TextPart）**
+**③ 结果回传（`SendMessage`，原 taskId + 普通 TextPart；同步单次 JSON 响应，非 SSE）**
+
+HTTP 承载与鉴权见 Feat-Func-006 §3.5.0：`POST /a2a`、`Authorization: Bearer …`、`Accept: application/json`、新 `messageId`（≠ 创建键）、`contextId`=原 `conversationId`；响应 body 即该 Task 的下一状态（下一 `_interrupt` 或终态）。对齐 feat-011 §5.9.3 / AC-S3-*。
 
 ```json
 {
@@ -323,6 +344,8 @@ TransportProvider.resumeToolResult（带 taskRef + observation 文本续跑，�
 ```
 
 业务无需自己订阅并调用 handler；SDK 收到 `INPUT_REQUIRED` 即经**治理入口**执行并续跑。
+
+> **承载形态（对齐 feat-011 §5.9.3，本迭代冻结）**：创建 `SendStreamingMessage` 走 SSE，SSE 下行到 `INPUT_REQUIRED(_interrupt)` 后**流可关闭**；随后**每一次**工具结果续跑走**同步 `SendMessage`**（单次 JSON 响应，非 SSE），其响应 body 即下一状态（又一 `_interrupt` → SDK 再执行再续跑；或终态 → 结算）。上图 `◄ WORKING` / `◄ INPUT_REQUIRED2` 表示**续跑请求的同步响应体**，非新的 SSE 推送。SDK 把两种承载统一归一化为同一 `InvocationEvent` 流，业务无感知。
 
 ### 5.2 重连重放幂等（原型已验证）
 
@@ -406,7 +429,7 @@ InvocationCall call = client.invoke(InvocationRequest.builder()
 
 ## 8. 对 gateway 的要求（转述给 gateway 负责同事）
 
-> 通用 gateway 要求（A2A 兼容入口、Card url 改写、鉴权/租户注入、agentId 路由、**粘滞路由**、错误分层、SSE 逐帧透传、创建幂等/取消/重订阅）见 Feat-Func-006 §8。以下是**端侧工具多轮**特有的透传要求。
+> gateway 侧权威设计为 `agent-bus/feat-011-l2_V3.0.md`（FEAT-011），其中 §5（S3 端侧工具结果续跑）与 §5.9 已与 client 双方冻结（2026-07-22）。通用 gateway 要求（A2A 兼容入口、鉴权/租户注入、agentId 路由、**粘滞路由**、错误分层、SSE 逐帧透传）见 Feat-Func-006 §8 与 feat-011。以下是**端侧工具多轮**特有的透传要求（对应 feat-011 IN-6 / GW-S3-*）。
 
 | 编号 | 要求 | 说明 / 理由 |
 |------|------|------------|
@@ -449,3 +472,20 @@ InvocationCall call = client.invoke(InvocationRequest.builder()
 | 结果对象 | outcome+payload/payloadRef+幂等键+审计 | ✅ 已对齐（客户端对象，wire=文本） | 原型 `ToolResult`→`ToolExecutionRecord` 补字段 |
 | 内部恢复请求 | 结果=同 invocation 内部恢复，非新 invocation | ✅ 已对齐（§3.5） | 与 Feat-Func-006 §3.4 用户输入续跑区分 |
 | 错误码闭集 | FEAT-007 §5.1.5 | ✅ 已对齐（§5.3） | 原型 Outcome 归并 → 明确错误码渲染 |
+
+### 10.1 与 feat-011（gateway 边界）一致性
+
+> 与 `agent-bus/feat-011-l2_V3.0.md` §5.9 双方冻结结论（2026-07-22）逐项落地：
+
+| feat-011 冻结项 | 本文落地 |
+|----------------|---------|
+| AC-S3-1 `taskRef` 源 `result.task.id`，续跑唯一粘滞键 | §3.5 ②③、Feat-Func-006 §3.5 标识映射 |
+| AC-S3-2/GW-S3-2 续跑写 `params.message.taskId` | §3.5 ③ |
+| AC-S3-3/GW-S3-3 续跑用新 `messageId`、不走创建幂等 | §3.5 ③、§5.2 |
+| AC-S3-4 识别 `_interrupt(client_tool)`、SSE 关流后本地执行再续跑 | §3.2、§5.1（承载形态） |
+| AC-S3-5/GW-S3-4 结果 TextPart observation、不上 wire `toolCallId` | §3.4、§3.5 ③、§1.3 原则 4/6 |
+| GW-S3-5 创建带 `clientTools`、下行 `_interrupt` 不删不改 | §3.5 ①②、§8 GT-1/GT-2 |
+| GW-S3-1/§5.9.3 续跑=同步 `SendMessage` 单次 JSON（非 SSE） | §3.5 ③、§5.1 承载形态 |
+| GW-S3-6/AC-S3-6 续跑每次带 `Authorization: Bearer` | §3.5 ③（引 Feat-Func-006 §3.5.0） |
+| GW-S3-7 续跑不依赖 `agentId` 寻路（gateway 粘滞） | §3.5 ③、§8 GT-4 |
+| GW-S3-9 owner 不可定位=明确失败、不静默新建 | §8 GT-4、Feat-Func-006 §5.3 |
